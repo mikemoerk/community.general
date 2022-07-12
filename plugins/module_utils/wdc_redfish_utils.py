@@ -216,7 +216,7 @@ class WdcRedfishUtils(RedfishUtils):
 
         """
         # Convert credentials to standard HTTP format
-        if "update_creds" in update_opts and "username" in update_opts["update_creds"] and "password" in update_opts["update_creds"]:
+        if update_opts.get("update_creds") is not None and "username" in update_opts["update_creds"] and "password" in update_opts["update_creds"]:
             update_creds = update_opts["update_creds"]
             parsed_url = urlparse(update_opts["update_image_uri"])
             if update_creds:
