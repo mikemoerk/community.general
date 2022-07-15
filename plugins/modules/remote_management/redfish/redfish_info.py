@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2017-2018 Dell EMC Inc.
-# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
@@ -277,6 +277,14 @@ EXAMPLES = '''
       baseuri: "{{ baseuri }}"
       username: "{{ username }}"
       password: "{{ password }}"
+
+  - name: Get Manager Inventory
+    community.general.redfish_info:
+      category: Manager
+      command: GetManagerInventory
+      baseuri: "{{ baseuri }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
 '''
 
 RETURN = '''
@@ -301,7 +309,7 @@ CATEGORY_COMMANDS_ALL = {
     "Sessions": ["GetSessions"],
     "Update": ["GetFirmwareInventory", "GetFirmwareUpdateCapabilities", "GetSoftwareInventory"],
     "Manager": ["GetManagerNicInventory", "GetVirtualMedia", "GetLogs", "GetNetworkProtocols",
-                "GetHealthReport", "GetHostInterfaces"],
+                "GetHealthReport", "GetHostInterfaces", "GetManagerInventory"],
 }
 
 CATEGORY_COMMANDS_DEFAULT = {
@@ -485,6 +493,8 @@ def main():
                     result["health_report"] = rf_utils.get_multi_manager_health_report()
                 elif command == "GetHostInterfaces":
                     result["host_interfaces"] = rf_utils.get_hostinterfaces()
+                elif command == "GetManagerInventory":
+                    result["manager"] = rf_utils.get_multi_manager_inventory()
 
     # Return data back
     module.exit_json(redfish_facts=result)
