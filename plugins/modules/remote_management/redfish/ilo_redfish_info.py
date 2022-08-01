@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # Copyright (c) 2021-2022 Hewlett Packard Enterprise, Inc. All rights reserved.
-# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
@@ -74,7 +74,7 @@ ilo_redfish_info:
             type: dict
             contains:
                 ret:
-                    description: Check variable to see if the information was succesfully retrived.
+                    description: Check variable to see if the information was successfully retrieved.
                     type: bool
                 msg:
                     description: Information of all active iLO sessions.

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2017-2018 Dell EMC Inc.
-# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
@@ -1888,14 +1888,13 @@ class RedfishUtils(object):
                         for property in properties:
                             if property in data:
                                 chassis_power_result[property] = data[property]
-                else:
-                    return {'ret': False, 'msg': 'Key PowerControl not found.'}
                 chassis_power_results.append(chassis_power_result)
-            else:
-                return {'ret': False, 'msg': 'Key Power not found.'}
 
-        result['entries'] = chassis_power_results
-        return result
+        if len(chassis_power_results) > 0:
+            result['entries'] = chassis_power_results
+            return result
+        else:
+            return {'ret': False, 'msg': 'Power information not found.'}
 
     def get_chassis_thermals(self):
         result = {}
@@ -3029,3 +3028,26 @@ class RedfishUtils(object):
         if not result["entries"]:
             return {'ret': False, 'msg': "No HostInterface objects found"}
         return result
+
+    def get_manager_inventory(self, manager_uri):
+        result = {}
+        inventory = {}
+        # Get these entries, but does not fail if not found
+        properties = ['FirmwareVersion', 'ManagerType', 'Manufacturer', 'Model',
+                      'PartNumber', 'PowerState', 'SerialNumber', 'Status', 'UUID']
+
+        response = self.get_request(self.root_uri + manager_uri)
+        if response['ret'] is False:
+            return response
+        result['ret'] = True
+        data = response['data']
+
+        for property in properties:
+            if property in data:
+                inventory[property] = data[property]
+
+        result["entries"] = inventory
+        return result
+
+    def get_multi_manager_inventory(self):
+        return self.aggregate_managers(self.get_manager_inventory)

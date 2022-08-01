@@ -21,8 +21,14 @@ DOCUMENTATION = '''
         description: query key.
         required: True
       passwordstore:
-        description: location of the password store.
-        default: '~/.password-store'
+        description:
+          - Location of the password store.
+          - 'The value is decided by checking the following in order:'
+          - If set, this value is used.
+          - If C(directory) is set, that value will be used.
+          - If I(backend=pass), then C(~/.password-store) is used.
+          - If I(backend=gopass), then the C(path) field in C(~/.config/gopass/config.yml) is used,
+            falling back to C(~/.local/share/gopass/stores/root) if not defined.
       directory:
         description: The directory of the password store.
         env:
@@ -255,11 +261,11 @@ class LookupModule(LookupBase):
     def is_real_pass(self):
         if self.realpass is None:
             try:
-                self.passoutput = to_text(
+                passoutput = to_text(
                     check_output2([self.pass_cmd, "--version"], env=self.env),
                     errors='surrogate_or_strict'
                 )
-                self.realpass = 'pass: the standard unix password manager' in self.passoutput
+                self.realpass = 'pass: the standard unix password manager' in passoutput
             except (subprocess.CalledProcessError) as e:
                 raise AnsibleError(e)
 
@@ -325,7 +331,6 @@ class LookupModule(LookupBase):
         try:
             self.passoutput = to_text(
                 check_output2([self.pass_cmd, 'show'] +
-                              (['--password'] if self.backend == 'gopass' else []) +
                               [self.passname], env=self.env),
                 errors='surrogate_or_strict'
             ).splitlines()
@@ -428,11 +433,22 @@ class LookupModule(LookupBase):
             raise AnsibleError("{0} is not a correct value for locktimeout".format(timeout))
         unit_to_seconds = {"s": 1, "m": 60, "h": 3600}
         self.lock_timeout = int(timeout[:-1]) * unit_to_seconds[timeout[-1]]
+
+        directory = variables.get('passwordstore', os.environ.get('PASSWORD_STORE_DIR', None))
+
+        if directory is None:
+            if self.backend == 'gopass':
+                try:
+                    with open(os.path.expanduser('~/.config/gopass/config.yml')) as f:
+                        directory = yaml.safe_load(f)['path']
+                except (FileNotFoundError, KeyError, yaml.YAMLError):
+                    directory = os.path.expanduser('~/.local/share/gopass/stores/root')
+            else:
+                directory = os.path.expanduser('~/.password-store')
+
         self.paramvals = {
             'subkey': 'password',
-            'directory': variables.get('passwordstore', os.environ.get(
-                                       'PASSWORD_STORE_DIR',
-                                       os.path.expanduser('~/.password-store'))),
+            'directory': directory,
             'create': False,
             'returnall': False,
             'overwrite': False,
