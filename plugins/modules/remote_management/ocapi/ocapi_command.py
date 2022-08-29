@@ -11,7 +11,7 @@ __metaclass__ = type
 DOCUMENTATION = '''
 ---
 module: ocapi_command
-short_description: Manages Out-Of-Band controllers using Open Composable API (OCAPI).  
+short_description: Manages Out-Of-Band controllers using Open Composable API (OCAPI).
 description:
   - Builds OCAPI URIs locally and sends them to remote OOB controllers to
     perform an action.
@@ -29,18 +29,29 @@ options:
     type: list
     elements: str
   baseuri:
-    required: true
     description:
-      - Base URI of OOB controller.
+      - Base URI of OOB controller.  Must include this or I(ioms).
     type: str
+  ioms:
+    description:
+      - List of IOM FQDNs for the enclosure.  Must include this or I(baseuri).
+    type: list
+    elements: str
   username:
+    required: true
     description:
       - Username for authenticating to OOB controller.
     type: str
   password:
+    required: true
     description:
       - Password for authenticating to OOB controller.
     type: str
+  timeout:
+    description:
+      - Timeout in seconds for URL requests to OOB controller.
+    default: 10
+    type: int
 
 author: "Mike Moerk (@mikemoerk)"
 '''
@@ -92,7 +103,6 @@ def main():
             baseuri=dict(),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
-            resource_id=dict(),
             timeout=dict(type='int', default=10)
         ),
         supports_check_mode=True
@@ -110,9 +120,6 @@ def main():
     # timeout
     timeout = module.params['timeout']
 
-    # Device ID to modify
-    resource_id = module.params['resource_id']
-
     # Build root URI(s)
     if module.params.get("baseuri") is not None:
         root_uris = ["https://" + module.params['baseuri']]
@@ -128,8 +135,7 @@ def main():
         root_uris = [
             "https://" + iom for iom in module.params['ioms']
         ]
-    ocapi_utils = OcapiUtils(creds, root_uris, timeout, module,
-                             resource_id=resource_id)
+    ocapi_utils = OcapiUtils(creds, root_uris, timeout, module)
 
     # Check that Category is valid
     if category not in CATEGORY_COMMANDS_ALL:

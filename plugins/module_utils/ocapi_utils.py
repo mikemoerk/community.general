@@ -18,12 +18,11 @@ PUT_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
 
 class OcapiUtils(object):
 
-    def __init__(self, creds, root_uris, timeout, module, resource_id=None):
+    def __init__(self, creds, root_uris, timeout, module):
         self.root_uri = root_uris[0]
         self.creds = creds
         self.timeout = timeout
         self.module = module
-        self.resource_id = resource_id
         # Update the root URI if the first one is not a valid OCAPI URI.
         self._set_root_uri(root_uris)
 
