@@ -9,9 +9,7 @@ import json
 from ansible.module_utils.urls import open_url
 from ansible.module_utils.common.text.converters import to_native
 from ansible.module_utils.common.text.converters import to_text
-from ansible.module_utils.six.moves import http_client
 from ansible.module_utils.six.moves.urllib.error import URLError, HTTPError
-from ansible.module_utils.six.moves.urllib.parse import urlparse
 
 
 GET_HEADERS = {'accept': 'application/json'}
@@ -20,13 +18,28 @@ PUT_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
 
 class OcapiUtils(object):
 
-    def __init__(self, creds, root_uri, timeout, module, resource_id=None):
-        self.root_uri = root_uri
+    def __init__(self, creds, root_uris, timeout, module, resource_id=None):
+        self.root_uri = root_uris[0]
         self.creds = creds
         self.timeout = timeout
         self.module = module
-        self.service_root = '/Query/'
         self.resource_id = resource_id
+        # Update the root URI if the first one is not a valid OCAPI URI.
+        self._set_root_uri(root_uris)
+
+    def _set_root_uri(self, root_uris):
+        """Set the root URI from a list of options.
+
+        If the current root URI is good, just keep it.  Else cycle through our options until we find a good one.
+        A URI is considered good if a GET response is successful, returns JSON, and has a "Self" property.
+        """
+        for root_uri in root_uris:
+            response = self.get_request(root_uri)
+            if response['ret']:
+                data = response['data']
+                if "Self" in data:
+                    self.root_uri = root_uri
+                    break
 
     def _auth_params(self):
         """
@@ -94,9 +107,18 @@ class OcapiUtils(object):
         return {'ret': True, 'headers': headers, 'resp': resp}
 
     def manage_chassis_indicator_led(self, command):
+        """Process a command to manage the chassis indicator LED.
+
+        :param string command: The Ansible command being processed.
+        """
         return self.manage_indicator_led(command, self.root_uri)
 
     def manage_indicator_led(self, command, resource_uri=None):
+        """Process a command to manage an indicator LED.
+
+        :param string command: The Ansible command being processed.
+        :param string resource_uri: URI of the resource whose indicator LED is being managed.
+        """
         key = "IndicatorLED"
         if resource_uri is None:
             resource_uri = self.root_uri

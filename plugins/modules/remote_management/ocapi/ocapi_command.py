@@ -121,7 +121,14 @@ def main():
             "https://" + iom for iom in module.params['ioms']
         ]
     # ToDo: choose the best URL!
-    ocapi_utils = OcapiUtils(creds, root_uris[0], timeout, module,
+    # Build root URI(s)
+    if module.params.get("baseuri") is not None:
+        root_uris = ["https://" + module.params['baseuri']]
+    else:
+        root_uris = [
+            "https://" + iom for iom in module.params['ioms']
+        ]
+    ocapi_utils = OcapiUtils(creds, root_uris, timeout, module,
                              resource_id=resource_id)
 
     # Check that Category is valid
