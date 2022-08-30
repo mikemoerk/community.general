@@ -25,9 +25,8 @@ options:
   command:
     required: true
     description:
-      - List of commands to execute on OOB controller.
-    type: list
-    elements: str
+      - Command to execute on OOB controller.
+    type: str
   baseuri:
     description:
       - Base URI of OOB controller.  Must include this or I(ioms).
@@ -98,7 +97,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             category=dict(required=True),
-            command=dict(required=True, type='list', elements='str'),
+            command=dict(required=True, type='str'),
             ioms=dict(type='list', elements='str'),
             baseuri=dict(),
             username=dict(required=True),
@@ -109,7 +108,7 @@ def main():
     )
 
     category = module.params['category']
-    command_list = module.params['command']
+    command = module.params['command']
 
     # admin credentials used for authentication
     creds = {
@@ -127,38 +126,20 @@ def main():
         root_uris = [
             "https://" + iom for iom in module.params['ioms']
         ]
-    # ToDo: choose the best URL!
-    # Build root URI(s)
-    if module.params.get("baseuri") is not None:
-        root_uris = ["https://" + module.params['baseuri']]
-    else:
-        root_uris = [
-            "https://" + iom for iom in module.params['ioms']
-        ]
     ocapi_utils = OcapiUtils(creds, root_uris, timeout, module)
 
     # Check that Category is valid
     if category not in CATEGORY_COMMANDS_ALL:
         module.fail_json(msg=to_native("Invalid Category '%s'. Valid Categories = %s" % (category, list(CATEGORY_COMMANDS_ALL.keys()))))
 
-    # Check that all commands are valid
-    for cmd in command_list:
-        # Fail if even one command given is invalid
-        if cmd not in CATEGORY_COMMANDS_ALL[category]:
-            module.fail_json(msg=to_native("Invalid Command '%s'. Valid Commands = %s" % (cmd, CATEGORY_COMMANDS_ALL[category])))
+    # Check that the commands is valid
+    if command not in CATEGORY_COMMANDS_ALL[category]:
+        module.fail_json(msg=to_native("Invalid Command '%s'. Valid Commands = %s" % (command, CATEGORY_COMMANDS_ALL[category])))
 
     # Organize by Categories / Commands
     if category == "Chassis":
-        led_commands = ["IndicatorLedOn", "IndicatorLedOff"]
-
-        # Check if more than on led_command is present
-        num_led_commands = sum([command in led_commands for command in command_list])
-        if num_led_commands > 1:
-            result = {'ret': False, 'msg': "Only one IndicatorLed command should be sent at a time."}
-        else:
-            for command in command_list:
-                if command.startswith("IndicatorLed"):
-                    result = ocapi_utils.manage_chassis_indicator_led(command)
+        if command.startswith("IndicatorLed"):
+            result = ocapi_utils.manage_chassis_indicator_led(command)
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))
