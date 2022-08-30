@@ -15,7 +15,7 @@ short_description: Manages Out-Of-Band controllers using Open Composable API (OC
 description:
   - Builds OCAPI URIs locally and sends them to remote OOB controllers to
     perform an action.
-  - Manages OOB controller such as Indicator LED, reboot, power mode, firmware update.
+  - Manages OOB controller such as Indicator LED, Reboot, Power Mode, Firmware Update.
 options:
   category:
     required: true

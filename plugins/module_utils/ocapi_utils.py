@@ -93,16 +93,16 @@ class OcapiUtils(object):
         except HTTPError as e:
             msg = self._get_extended_message(e)
             return {'ret': False,
-                    'msg': "HTTP Error %s on POST request to '%s', extended message: '%s'"
+                    'msg': "HTTP Error %s on PUT request to '%s', extended message: '%s'"
                            % (e.code, uri, msg),
                     'status': e.code}
         except URLError as e:
-            return {'ret': False, 'msg': "URL Error on POST request to '%s': '%s'"
+            return {'ret': False, 'msg': "URL Error on PUT request to '%s': '%s'"
                                          % (uri, e.reason)}
         # Almost all errors should be caught above, but just in case
         except Exception as e:
             return {'ret': False,
-                    'msg': "Failed POST request to '%s': '%s'" % (uri, to_text(e))}
+                    'msg': "Failed PUT request to '%s': '%s'" % (uri, to_text(e))}
         return {'ret': True, 'headers': headers, 'resp': resp}
 
     def manage_chassis_indicator_led(self, command):
