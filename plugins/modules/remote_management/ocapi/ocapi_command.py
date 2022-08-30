@@ -132,7 +132,7 @@ def main():
     if category not in CATEGORY_COMMANDS_ALL:
         module.fail_json(msg=to_native("Invalid Category '%s'. Valid Categories = %s" % (category, list(CATEGORY_COMMANDS_ALL.keys()))))
 
-    # Check that the commands is valid
+    # Check that the command is valid
     if command not in CATEGORY_COMMANDS_ALL[category]:
         module.fail_json(msg=to_native("Invalid Command '%s'. Valid Commands = %s" % (command, CATEGORY_COMMANDS_ALL[category])))
 
