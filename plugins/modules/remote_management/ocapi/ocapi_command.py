@@ -70,7 +70,12 @@ EXAMPLES = '''
       ioms: "{{ ioms }}"
       username: "{{ username }}"
       password: "{{ password }}"
-
+ - name: Reset Enclosure
+   community.general.ocapi_command:
+     category: Systems
+     ioms: "{{ ioms }}"
+     username: "{{ username }}"
+     password: "{{ password }}"
 '''
 
 RETURN = '''
@@ -89,6 +94,7 @@ from ansible.module_utils.common.text.converters import to_native
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
     "Chassis": ["IndicatorLedOn", "IndicatorLedOff"],
+    "Systems": ["PowerGracefulRestart"]
 }
 
 
@@ -140,6 +146,9 @@ def main():
     if category == "Chassis":
         if command.startswith("IndicatorLed"):
             result = ocapi_utils.manage_chassis_indicator_led(command)
+    elif category == "Systems":
+        if command.startswith("Power"):
+            result = ocapi_utils.manage_system_power(command)
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))

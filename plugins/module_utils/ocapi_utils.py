@@ -105,6 +105,28 @@ class OcapiUtils(object):
                     'msg': "Failed PUT request to '%s': '%s'" % (uri, to_text(e))}
         return {'ret': True, 'headers': headers, 'resp': resp}
 
+    def manage_system_power(self, command):
+        if command == "PowerGracefulRestart":
+            resource_uri = self.root_uri
+
+            # Get the resource so that we have the Etag
+            response = self.get_request(resource_uri)
+            if 'etag' not in response['headers']:
+                return {'ret': False, 'msg': 'Etag not found in response.'}
+            etag = response['headers']['etag']
+            if response['ret'] is False:
+                return response
+
+            # Issue the PUT to do the reboot
+            payload = {'Reboot': True}
+            response = self.put_request(resource_uri, payload, etag)
+            if response['ret'] is False:
+                return response
+        else:
+            return {'ret': False, 'msg': 'Invalid command.'}
+
+        return {'ret': True}
+
     def manage_chassis_indicator_led(self, command):
         """Process a command to manage the chassis indicator LED.
 
