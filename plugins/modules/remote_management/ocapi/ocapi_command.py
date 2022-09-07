@@ -56,7 +56,7 @@ author: "Mike Moerk (@mikemoerk)"
 '''
 
 EXAMPLES = '''
-  - name: Set system indicator LED to on
+  - name: Set chassis indicator LED to on
     community.general.ocapi_command:
       category: Chassis
       command: IndicatorLedOn
@@ -70,7 +70,13 @@ EXAMPLES = '''
       ioms: "{{ ioms }}"
       username: "{{ username }}"
       password: "{{ password }}"
-
+  - name: Reset Enclosure
+    community.general.ocapi_command:
+      category: Systems
+      command: PowerGracefulRestart
+      ioms: "{{ ioms }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
 '''
 
 RETURN = '''
@@ -89,6 +95,7 @@ from ansible.module_utils.common.text.converters import to_native
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
     "Chassis": ["IndicatorLedOn", "IndicatorLedOff"],
+    "Systems": ["PowerGracefulRestart"]
 }
 
 
@@ -104,6 +111,9 @@ def main():
             password=dict(required=True, no_log=True),
             timeout=dict(type='int', default=10)
         ),
+        required_one_of=[
+            ('ioms', 'baseuri')
+        ],
         supports_check_mode=True
     )
 
@@ -126,6 +136,8 @@ def main():
         root_uris = [
             "https://" + iom for iom in module.params['ioms']
         ]
+    if len(root_uris) == 0:
+        module.fail_json(msg=to_native("Must specify base uri or non-empty ioms list."))
     ocapi_utils = OcapiUtils(creds, root_uris, timeout, module)
 
     # Check that Category is valid
@@ -140,6 +152,9 @@ def main():
     if category == "Chassis":
         if command.startswith("IndicatorLed"):
             result = ocapi_utils.manage_chassis_indicator_led(command)
+    elif category == "Systems":
+        if command.startswith("Power"):
+            result = ocapi_utils.manage_system_power(command)
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))
