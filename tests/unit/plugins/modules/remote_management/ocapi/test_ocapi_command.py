@@ -175,4 +175,3 @@ class TestOcapiCommand(unittest.TestCase):
                 module.main()
             self.assertEqual("Action was successful", get_exception_message(ansible_exit_json))
             self.assertTrue(is_changed(ansible_exit_json))
-
