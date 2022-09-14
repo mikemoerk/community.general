@@ -172,6 +172,8 @@ def main():
             result = ocapi_utils.manage_system_power(command)
     elif category == "Update":
         if command == "FWUpload":
+            if module.params.get("ioms") is not None:
+                module.fail_json(msg="Cannot specify ioms list for FWUpload.  Specify baseuri instead.")
             update_image_path = module.params.get("update_image_path")
             if update_image_path is None:
                 module.fail_json(msg=to_native("Missing update_image_path."))

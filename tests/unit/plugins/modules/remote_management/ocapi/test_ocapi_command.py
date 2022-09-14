@@ -173,7 +173,7 @@ class TestOcapiCommand(unittest.TestCase):
         """Test that if we set LED Indicator to off when it's already off, we get changed=False."""
         with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
                             get_request=mock_get_request,
-                            put_request=mock_put_request):
+                            put_request=mock_invalid_http_request):
             with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
                 set_module_args({
                     'category': 'Chassis',
@@ -270,7 +270,7 @@ class TestOcapiCommand(unittest.TestCase):
     def test_firmware_upload_file_not_found(self):
         with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
                             get_request=mock_get_request,
-                            put_request=mock_put_request):
+                            put_request=mock_invalid_http_request):
             with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
                 set_module_args({
                     'category': 'Update',
@@ -282,6 +282,24 @@ class TestOcapiCommand(unittest.TestCase):
                 })
                 module.main()
             self.assertEqual("File does not exist.", get_exception_message(ansible_fail_json))
+
+    def test_firmware_upload_ioms(self):
+        """Test that we are not allowed to specify ioms list for FWUpload (we must specify baseuri instead)."""
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
+                set_module_args({
+                    'category': 'Update',
+                    'command': 'FWUpload',
+                    'update_image_path': 'nonexistentfile.bin',
+                    'ioms': [MOCK_BASE_URI],
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual("Cannot specify ioms list for FWUpload.  Specify baseuri instead.",
+                             get_exception_message(ansible_fail_json))
 
     def test_firmware_upload(self):
         filename = "fake_firmware.bin"
