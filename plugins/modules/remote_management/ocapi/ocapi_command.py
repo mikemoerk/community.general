@@ -36,6 +36,11 @@ options:
       - List of IOM FQDNs for the enclosure.  Must include this or I(baseuri).
     type: list
     elements: str
+  update_image_path:
+    required: false
+    description:
+      - For FWUpload, the path on the local filesystem of the firmware update image.
+    type: str
   username:
     required: true
     description:
@@ -77,6 +82,14 @@ EXAMPLES = '''
       ioms: "{{ ioms }}"
       username: "{{ username }}"
       password: "{{ password }}"
+  - name: Firmware Upload
+    community.general.ocapi_command:
+      category: Update
+      command: FWUpload
+      baseuri: "iom1.wdc.com"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      update_image_path: "/path/to/firmware.tar.gz"
 '''
 
 RETURN = '''
@@ -95,7 +108,8 @@ from ansible.module_utils.common.text.converters import to_native
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
     "Chassis": ["IndicatorLedOn", "IndicatorLedOff"],
-    "Systems": ["PowerGracefulRestart"]
+    "Systems": ["PowerGracefulRestart"],
+    "Update": ["FWUpload"]
 }
 
 
@@ -107,6 +121,7 @@ def main():
             command=dict(required=True, type='str'),
             ioms=dict(type='list', elements='str'),
             baseuri=dict(),
+            update_image_path=dict(type='str'),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             timeout=dict(type='int', default=10)
@@ -155,6 +170,12 @@ def main():
     elif category == "Systems":
         if command.startswith("Power"):
             result = ocapi_utils.manage_system_power(command)
+    elif category == "Update":
+        if command == "FWUpload":
+            update_image_path = module.params.get("update_image_path")
+            if update_image_path is None:
+                module.fail_json(msg=to_native("Missing update_image_path."))
+            result = ocapi_utils.upload_firmware_image(update_image_path)
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))
@@ -164,7 +185,7 @@ def main():
         session = result.get('session', dict())
         module.exit_json(changed=changed,
                          session=session,
-                         msg='Action was successful' if not module.check_mode else result.get(
+                         msg='Action was successful.' if not module.check_mode else result.get(
                              'msg', "No action performed in check mode."
                          ))
 
