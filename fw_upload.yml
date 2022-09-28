@@ -1,0 +1,18 @@
+- name: MH FW Upload a file via multipart/form-multipart
+  hosts: localhost
+  gather_facts: False
+
+  tasks:
+    - name: Upload the file
+      ansible.builtin.uri:
+        url: http://openflex-data24-usalp03020qb0003-ioma.hgst.com/Storage/Devices/openflex-data24-usalp03020qb0003/OperatingSystem
+        method: POST
+        user: admin
+        password: admin
+        force_basic_auth: yes
+        status_code: 201
+        body_format: form-multipart
+        body:
+          FirmwareFile:
+            filename: /Users/mikemoerk/Downloads/bundle_fw-mh5.0.x-28.signed
+            mime_type: application/octet-stream

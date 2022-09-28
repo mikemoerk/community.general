@@ -266,3 +266,68 @@ class OcapiUtils(object):
         if result['ret'] is False:
             return result
         return {'ret': True}
+
+    def update_firmware_image(self):
+        resource_uri = self.root_uri
+        # We have to do a GET to obtain the Etag.  It's required on the PUT.
+        response = self.get_request(resource_uri)
+        if 'etag' not in response['headers']:
+            return {'ret': False, 'msg': 'Etag not found in response.'}
+        etag = response['headers']['etag']
+        if response['ret'] is False:
+            return response
+
+        # Issue the PUT (unless we are in check mode)
+        if self.module.check_mode:
+            return {
+                'ret': True,
+                'changed': True,
+                'msg': 'Update not performed in check mode.'
+            }
+        payload = {'FirmwareUpdate': True}
+        response = self.put_request(resource_uri, payload, etag)
+        if response['ret'] is False:
+            return response
+
+        return {'ret': True, 'statusMonitor': response["headers"]["location"]}
+
+    def activate_firmware_image(self):
+        resource_uri = self.root_uri
+        # We have to do a GET to obtain the Etag.  It's required on the PUT.
+        response = self.get_request(resource_uri)
+        if 'etag' not in response['headers']:
+            return {'ret': False, 'msg': 'Etag not found in response.'}
+        etag = response['headers']['etag']
+        if response['ret'] is False:
+            return response
+
+        # Issue the PUT (unless we are in check mode)
+        if self.module.check_mode:
+            return {
+                'ret': True,
+                'changed': True,
+                'msg': 'Update not performed in check mode.'
+            }
+        payload = {'FirmwareActivate': True}
+        response = self.put_request(resource_uri, payload, etag)
+        if response['ret'] is False:
+            return response
+
+        return {'ret': True}
+
+    def get_job_status(self, status_monitor):
+        response = self.get_request(status_monitor)
+        if response['ret'] is False:
+            return response
+        details = response["data"]["Status"]["Details"]
+        if type(details) is str:
+            details = [details]
+        return {
+            "ret": True,
+            "msg": "Action was successful.",
+            "percentComplete": response["data"]["PercentComplete"],
+            "operationStatus": response["data"]["Status"]["State"]["Name"],
+            "details": details
+        }
+
+
