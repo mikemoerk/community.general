@@ -19,6 +19,8 @@ GET_HEADERS = {'accept': 'application/json'}
 PUT_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
 POST_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
 
+HEALTH_OK = 5
+
 
 class OcapiUtils(object):
 
@@ -271,11 +273,11 @@ class OcapiUtils(object):
         resource_uri = self.root_uri
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
+        if response['ret'] is False:
+            return response
         if 'etag' not in response['headers']:
             return {'ret': False, 'msg': 'Etag not found in response.'}
         etag = response['headers']['etag']
-        if response['ret'] is False:
-            return response
 
         # Issue the PUT (unless we are in check mode)
         if self.module.check_mode:
@@ -313,21 +315,35 @@ class OcapiUtils(object):
         if response['ret'] is False:
             return response
 
-        return {'ret': True}
+        return {'ret': True, 'statusMonitor': response["headers"]["location"]}
 
     def get_job_status(self, status_monitor):
         response = self.get_request(status_monitor)
         if response['ret'] is False:
             return response
-        details = response["data"]["Status"]["Details"]
+        details = response["data"]["Status"].get("Details")
         if type(details) is str:
             details = [details]
-        return {
+        health_list = response["data"]["Status"]["Health"]
+        return_value = {
             "ret": True,
-            "msg": "Action was successful.",
             "percentComplete": response["data"]["PercentComplete"],
             "operationStatus": response["data"]["Status"]["State"]["Name"],
+            "operationStatusId": response["data"]["Status"]["State"]["ID"],
+            "operationHealth": health_list[0]["Name"] if len(health_list) > 0 else None,
+            "operationHealthId": health_list[0]["ID"] if len(health_list) > 0 else None,
             "details": details
         }
+        return return_value
+
+    def get_system_status(self):
+        response = self.get_request(self.root_uri)
+        if response['ret'] is False:
+            return response
+        return_value = {
+            "ret": True,
+            "status": response["data"]["Status"]
+        }
+        return return_value
 
 

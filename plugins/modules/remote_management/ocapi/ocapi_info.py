@@ -74,21 +74,61 @@ msg:
     sample: "Action was successful"
 
 percentComplete:
-    description: Percent complete of the relevant operation.  Applies to statusMonitor command.
+    description: Percent complete of the relevant operation.  Applies to JobStatus command.
     returned: when supported
     type: int
     sample: 99
     
 operationStatus:
-    description: Status of the relevant operation.  Applies to statusMonitor command.
+    description: Status of the relevant operation.  Applies to JobStatus command.  See OCAPI documentation for details.
     returned: when supported
     type: str
-    
+    sample: "Activate needed"
+
+operationStatusId:
+    description: Integer value of status (corresponds to operationStatus).  Applies to JobStatus command.  See OCAPI documentation for details.
+    returned: when supported
+    type: int
+    sample: 65540
+
+operationHealth:
+    description: Health of the operation.  Applies to JobStatus command.  See OCAPI documentation for details.
+    returned: when supported
+    type: str
+    sample: "OK"
+
+operationHealthId:
+    description: Integer value for health of the operation (corresponds to operationHealth).  Applies to JobStatus command.  See OCAPI documentation for details.
+    returned: when supported
+    type: str
+    sample: "OK"
+
 details:
     description: Details of the relevant operation.  Applies to statusMonitor command.
     returned: when supported
     type: list
     elements: str
+
+status:
+    description: Dict containing status information.  See OCAPI documentation for details.
+    returned: when supported
+    type: dict
+    sample: {
+        "Details": [
+            "None"
+        ],
+        "Health": [
+            {
+                "ID": 5,
+                "Name": "OK"
+            }
+        ],
+        "State": {
+            "ID": 16,
+            "Name": "In service"
+        }
+    }
+
 '''
 
 from ansible.module_utils.basic import AnsibleModule
@@ -97,7 +137,7 @@ from ansible.module_utils.common.text.converters import to_native
 
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
-    "Status": ["JobStatus"]
+    "Status": ["JobStatus", "SystemStatus"]
 }
 
 
@@ -158,6 +198,8 @@ def main():
                 module.fail_json(msg=to_native(
                     "statusMonitor required for JobStatus command."))
             result = ocapi_utils.get_job_status(module.params['statusMonitor'])
+        elif command == "SystemStatus":
+            result = ocapi_utils.get_system_status()
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))

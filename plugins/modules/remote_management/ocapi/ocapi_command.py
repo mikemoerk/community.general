@@ -116,7 +116,15 @@ msg:
 statusMonitor:
     description: Token to use to monitor status of the operation.  Returned for async commands such as Firmware Update, Firmware Activate.
     returned: when supported
+    type: str
     sample: "https://ioma.wdc.com/Storage/Devices/openflex-data24-usalp03020qb0003/Jobs/FirmwareUpdate/"
+
+operationStatusId:
+    description: OCAPI State ID (see OCAPI documentation for possible values)
+    returned: when supported
+    type: int
+    sample: 2
+
 '''
 
 from ansible.module_utils.basic import AnsibleModule
