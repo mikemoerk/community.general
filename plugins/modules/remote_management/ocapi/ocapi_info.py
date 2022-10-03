@@ -51,6 +51,11 @@ options:
       - Timeout in seconds for URL requests to OOB controller.
     default: 10
     type: int
+  jobUri:
+    description:
+      -URI for fetching a job status.
+    type: str
+
 
 author: "Mike Moerk (@mikemoerk)"
 '''
@@ -78,7 +83,7 @@ percentComplete:
     returned: when supported
     type: int
     sample: 99
-    
+
 operationStatus:
     description: Status of the relevant operation.  Applies to JobStatus command.  See OCAPI documentation for details.
     returned: when supported
@@ -98,7 +103,7 @@ operationHealth:
     sample: "OK"
 
 operationHealthId:
-    description: Integer value for health of the operation (corresponds to operationHealth).  Applies to JobStatus command.  See OCAPI documentation for details.
+    description: Integer value for health of the operation (corresponds to operationHealth). Applies to JobStatus command. See OCAPI documentation for details.
     returned: when supported
     type: str
     sample: "OK"
@@ -147,17 +152,17 @@ def main():
         argument_spec=dict(
             category=dict(required=True),
             command=dict(required=True, type='str'),
-            statusMonitor=dict(type='str'),
+            jobUri=dict(type='str'),
             ioms=dict(type='list', elements='str'),
             baseuri=dict(),
-            update_image_path=dict(type='str'),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             timeout=dict(type='int', default=10)
         ),
         required_one_of=[
             ('ioms', 'baseuri')
-        ]
+        ],
+        supports_check_mode=True
     )
 
     category = module.params['category']
@@ -194,10 +199,10 @@ def main():
     # Organize by Categories / Commands
     if category == "Status":
         if command == "JobStatus":
-            if module.params.get("statusMonitor") is None:
+            if module.params.get("jobUri") is None:
                 module.fail_json(msg=to_native(
-                    "statusMonitor required for JobStatus command."))
-            result = ocapi_utils.get_job_status(module.params['statusMonitor'])
+                    "jobUri required for JobStatus command."))
+            result = ocapi_utils.get_job_status(module.params['jobUri'])
         elif command == "SystemStatus":
             result = ocapi_utils.get_system_status()
 

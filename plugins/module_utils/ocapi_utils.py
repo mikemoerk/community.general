@@ -141,6 +141,10 @@ class OcapiUtils(object):
         return {'ret': True, 'headers': headers, 'resp': resp}
 
     def manage_system_power(self, command):
+        """Process a command th manage the system power.
+
+        :param str command: The Ansible command being processed.
+        """
         if command == "PowerGracefulRestart":
             resource_uri = self.root_uri
 
@@ -252,6 +256,10 @@ class OcapiUtils(object):
                 body_bytes)
 
     def upload_firmware_image(self, update_image_path):
+        """Perform Firmware Upload to the OCAPI storage device.
+
+        :param str update_image_path: The path/filename of the firmware image, on the local filesystem.
+        """
         if not (os.path.exists(update_image_path) and os.path.isfile(update_image_path)):
             return {'ret': False, 'msg': 'File does not exist.'}
         url = self.root_uri + "OperatingSystem"
@@ -270,6 +278,7 @@ class OcapiUtils(object):
         return {'ret': True}
 
     def update_firmware_image(self):
+        """Perform a Firmware Update on the OCAPI storage device."""
         resource_uri = self.root_uri
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
@@ -294,6 +303,7 @@ class OcapiUtils(object):
         return {'ret': True, 'statusMonitor': response["headers"]["location"]}
 
     def activate_firmware_image(self):
+        """Perform a Firmware Activate on the OCAPI storage device."""
         resource_uri = self.root_uri
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
@@ -317,8 +327,12 @@ class OcapiUtils(object):
 
         return {'ret': True, 'statusMonitor': response["headers"]["location"]}
 
-    def get_job_status(self, status_monitor):
-        response = self.get_request(status_monitor)
+    def get_job_status(self, job_uri):
+        """Get the status of a job.
+
+        :param str job_uri: The URI of the job's status monitor.
+        """
+        response = self.get_request(job_uri)
         if response['ret'] is False:
             return response
         details = response["data"]["Status"].get("Details")
@@ -337,6 +351,10 @@ class OcapiUtils(object):
         return return_value
 
     def get_system_status(self):
+        """Get the system status of an OCAPI target.
+
+        Refer to OCAPI documentation for details of the return data.
+        """
         response = self.get_request(self.root_uri)
         if response['ret'] is False:
             return response
@@ -345,5 +363,3 @@ class OcapiUtils(object):
             "status": response["data"]["Status"]
         }
         return return_value
-
-

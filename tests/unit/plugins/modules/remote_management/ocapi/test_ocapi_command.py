@@ -24,7 +24,7 @@ ACTION_WAS_SUCCESSFUL = "Action was successful."
 UPDATE_NOT_PERFORMED_IN_CHECK_MODE = "Update not performed in check mode."
 NO_ACTION_PERFORMED_IN_CHECK_MODE = "No action performed in check mode."
 
-MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF = {
+MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG = {
     "ret": True,
     "data": {
         "IndicatorLED": {
@@ -35,14 +35,15 @@ MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF = {
     "headers": {"etag": "MockETag"}
 }
 
-MOCK_SUCCESSFUL_HTTP_PUT_RESPONSE_WITH_ETAG = {
+MOCK_SUCCESSFUL_HTTP_RESPONSE = {
     "ret": True,
     "data": {}
 }
 
-MOCK_SUCCESSFUL_HTTP_POST_RESPONSE = {
+MOCK_SUCCESSFUL_HTTP_RESPONSE_WITH_LOCATION_HEADER = {
     "ret": True,
-    "data": {}
+    "data": {},
+    "headers": {"location": "mock_location"}
 }
 
 
@@ -65,7 +66,9 @@ def mock_get_request(*args, **kwargs):
     """Mock for get_request."""
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI:
-        return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
+    elif url == "mock_location":
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE
     raise RuntimeError("Illegal call to get_request in test: " + args[1])
 
 
@@ -73,7 +76,7 @@ def mock_put_request(*args, **kwargs):
     """Mock put_request."""
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI:
-        return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE_WITH_LOCATION_HEADER
     raise RuntimeError("Illegal PUT call to: " + args[1])
 
 
@@ -81,7 +84,7 @@ def mock_post_request(*args, **kwargs):
     """Mock post_request."""
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI + OPERATING_SYSTEM_URI:
-        return MOCK_SUCCESSFUL_HTTP_POST_RESPONSE
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE
     raise RuntimeError("Illegal POST call to: " + args[1])
 
 
@@ -298,7 +301,7 @@ class TestOcapiCommand(unittest.TestCase):
                     'password': 'PASSWORD=21'
                 })
                 module.main()
-            self.assertEqual("Cannot specify ioms list for FWUpload.  Specify baseuri instead.",
+            self.assertEqual("Cannot specify ioms list for firmware operations.  Specify baseuri instead.",
                              get_exception_message(ansible_fail_json))
 
     def test_firmware_upload(self):
@@ -341,6 +344,76 @@ class TestOcapiCommand(unittest.TestCase):
                     'category': 'Update',
                     'command': 'FWUpload',
                     'update_image_path': filepath,
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21',
+                    "_ansible_check_mode": True
+                })
+                module.main()
+            self.assertEqual(UPDATE_NOT_PERFORMED_IN_CHECK_MODE, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_firmware_update(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_put_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Update',
+                    'command': 'FWUpdate',
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual(ACTION_WAS_SUCCESSFUL, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_firmware_update_check_mode(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Update',
+                    'command': 'FWUpdate',
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21',
+                    "_ansible_check_mode": True
+                })
+                module.main()
+            self.assertEqual(UPDATE_NOT_PERFORMED_IN_CHECK_MODE, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_firmware_activate(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_put_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Update',
+                    'command': 'FWActivate',
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual(ACTION_WAS_SUCCESSFUL, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_firmware_activate_check_mode(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Update',
+                    'command': 'FWActivate',
                     'baseuri': MOCK_BASE_URI,
                     'username': 'USERID',
                     'password': 'PASSWORD=21',

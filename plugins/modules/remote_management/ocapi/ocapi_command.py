@@ -112,7 +112,7 @@ msg:
     returned: always
     type: str
     sample: "Action was successful"
-    
+
 statusMonitor:
     description: Token to use to monitor status of the operation.  Returned for async commands such as Firmware Update, Firmware Activate.
     returned: when supported
