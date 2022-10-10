@@ -141,7 +141,7 @@ class OcapiUtils(object):
         return {'ret': True, 'headers': headers, 'resp': resp}
 
     def manage_system_power(self, command):
-        """Process a command th manage the system power.
+        """Process a command to manage the system power.
 
         :param str command: The Ansible command being processed.
         """
