@@ -109,7 +109,7 @@ operationHealthId:
     sample: "OK"
 
 details:
-    description: Details of the relevant operation.  Applies to statusMonitor command.
+    description: Details of the relevant operation.  Applies to JobStatus command.
     returned: when supported
     type: list
     elements: str
