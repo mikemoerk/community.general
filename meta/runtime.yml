@@ -854,6 +854,8 @@ plugin_routing:
       redirect: community.general.net_tools.nsupdate
     ocapi_command:
       redirect: community.general.remote_management.ocapi.ocapi_command
+    ocapi_info:
+      redirect: community.general.remote_management.ocapi.ocapi_info
     oci_vcn:
       redirect: community.general.cloud.oracle.oci_vcn
     odbc:

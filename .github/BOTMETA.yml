@@ -974,6 +974,8 @@ files:
     maintainers: evertmulder
   $modules/remote_management/ocapi/ocapi_command.py:
     maintainers: $team_wdc
+  $modules/remote_management/ocapi/ocapi_info.py:
+    maintainers: $team_wdc
   $modules/remote_management/oneview/:
     maintainers: adriane-cardozo fgbulsoni tmiotto
   $modules/remote_management/oneview/oneview_datacenter_info.py:
