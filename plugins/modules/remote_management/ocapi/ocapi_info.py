@@ -53,7 +53,7 @@ options:
     type: int
   jobUri:
     description:
-      -URI for fetching a job status.
+      - URI for fetching a job status.
     type: str
 
 
