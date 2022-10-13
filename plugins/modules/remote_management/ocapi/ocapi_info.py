@@ -66,10 +66,13 @@ EXAMPLES = '''
       category: Status
       command: JobStatus
       ioms: "{{ ioms }}"
-      statusMonitor: https://ioma.wdc.com/Storage/Devices/openflex-data24-usalp03020qb0003/Jobs/FirmwareUpdate/
+      jobUri: https://ioma.wdc.com/Storage/Devices/openflex-data24-usalp03020qb0003/Jobs/FirmwareUpdate/
       username: "{{ username }}"
       password: "{{ password }}"
 '''
+
+# ToDo: change statusMonitor to job_uri
+# ToDo: No support for ioms on job status
 
 RETURN = '''
 msg:

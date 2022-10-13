@@ -19,6 +19,7 @@ from ansible_collections.community.general.tests.unit.plugins.modules.utils impo
 
 MOCK_BASE_URI = "mockBaseUri/"
 OPERATING_SYSTEM_URI = "OperatingSystem"
+MOCK_JOB_NAME = "MockJob"
 
 ACTION_WAS_SUCCESSFUL = "Action was successful."
 UPDATE_NOT_PERFORMED_IN_CHECK_MODE = "Update not performed in check mode."
@@ -40,10 +41,35 @@ MOCK_SUCCESSFUL_HTTP_RESPONSE = {
     "data": {}
 }
 
+MOCK_404_RESPONSE = {
+    "ret": False,
+    "status": 404
+}
+
 MOCK_SUCCESSFUL_HTTP_RESPONSE_WITH_LOCATION_HEADER = {
     "ret": True,
     "data": {},
     "headers": {"location": "mock_location"}
+}
+
+MOCK_HTTP_RESPONSE_CONFLICT = {
+    "ret": False,
+    "msg": "Conflict",
+    "status": 409
+}
+
+MOCK_HTTP_RESPONSE_JOB_IN_PROGRESS = {
+    "ret": True,
+    "data": {
+        "PercentComplete": 99
+    }
+}
+
+MOCK_HTTP_RESPONSE_JOB_COMPLETE = {
+    "ret": True,
+    "data": {
+        "PercentComplete": 100
+    }
 }
 
 
@@ -72,6 +98,34 @@ def mock_get_request(*args, **kwargs):
     raise RuntimeError("Illegal call to get_request in test: " + args[1])
 
 
+def mock_get_request_job_does_not_exist(*args, **kwargs):
+    """Mock for get_request."""
+    url = args[1]
+    if url == 'https://' + MOCK_BASE_URI:
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
+    elif url == 'https://' + MOCK_BASE_URI + "/Jobs/" + MOCK_JOB_NAME + "/":
+        return MOCK_404_RESPONSE
+    raise RuntimeError("Illegal call to get_request in test: " + args[1])
+
+
+def mock_get_request_job_in_progress(*args, **kwargs):
+    url = args[1]
+    if url == 'https://' + MOCK_BASE_URI:
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
+    elif url == 'https://' + MOCK_BASE_URI + "/Jobs/" + MOCK_JOB_NAME + "/":
+        return MOCK_HTTP_RESPONSE_JOB_IN_PROGRESS
+    raise RuntimeError("Illegal call to get_request in test: " + args[1])
+
+
+def mock_get_request_job_complete(*args, **kwargs):
+    url = args[1]
+    if url == 'https://' + MOCK_BASE_URI:
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
+    elif url == 'https://' + MOCK_BASE_URI + "/Jobs/" + MOCK_JOB_NAME + "/":
+        return MOCK_HTTP_RESPONSE_JOB_COMPLETE
+    raise RuntimeError("Illegal call to get_request in test: " + args[1])
+
+
 def mock_put_request(*args, **kwargs):
     """Mock put_request."""
     url = args[1]
@@ -80,12 +134,25 @@ def mock_put_request(*args, **kwargs):
     raise RuntimeError("Illegal PUT call to: " + args[1])
 
 
+def mock_delete_request(*args, **kwargs):
+    """Mock delete request."""
+    url = args[1]
+    if url == 'https://' + MOCK_BASE_URI + '/Jobs/' + MOCK_JOB_NAME + '/':
+        return MOCK_SUCCESSFUL_HTTP_RESPONSE
+    raise RuntimeError("Illegal DELETE call to: " + args[1])
+
+
 def mock_post_request(*args, **kwargs):
     """Mock post_request."""
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI + OPERATING_SYSTEM_URI:
         return MOCK_SUCCESSFUL_HTTP_RESPONSE
     raise RuntimeError("Illegal POST call to: " + args[1])
+
+
+def mock_http_request_conflict(*args, **kwargs):
+    """Mock to make an HTTP request return 409 Conflict"""
+    return MOCK_HTTP_RESPONSE_CONFLICT
 
 
 def mock_invalid_http_request(*args, **kwargs):
@@ -422,3 +489,99 @@ class TestOcapiCommand(unittest.TestCase):
                 module.main()
             self.assertEqual(UPDATE_NOT_PERFORMED_IN_CHECK_MODE, get_exception_message(ansible_exit_json))
             self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_delete_job(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            delete_request=mock_delete_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Jobs',
+                    'command': 'DeleteJob',
+                    'baseuri': MOCK_BASE_URI,
+                    'job_name': MOCK_JOB_NAME,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual(ACTION_WAS_SUCCESSFUL, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_delete_job_in_progress(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            delete_request=mock_http_request_conflict,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
+                set_module_args({
+                    'category': 'Jobs',
+                    'command': 'DeleteJob',
+                    'baseuri': MOCK_BASE_URI,
+                    'job_name': MOCK_JOB_NAME,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual("Conflict", get_exception_message(ansible_fail_json))
+
+    def test_delete_job_check_mode(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request_job_complete,
+                            delete_request=mock_delete_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Jobs',
+                    'command': 'DeleteJob',
+                    'baseuri': MOCK_BASE_URI,
+                    'job_name': MOCK_JOB_NAME,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21',
+                    '_ansible_check_mode': True
+                })
+                module.main()
+            self.assertEqual(UPDATE_NOT_PERFORMED_IN_CHECK_MODE, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_delete_job_check_mode_job_not_found(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request_job_does_not_exist,
+                            delete_request=mock_delete_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Jobs',
+                    'command': 'DeleteJob',
+                    'baseuri': MOCK_BASE_URI,
+                    'job_name': MOCK_JOB_NAME,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21',
+                    '_ansible_check_mode': True
+                })
+                module.main()
+            self.assertEqual("Job already deleted.", get_exception_message(ansible_exit_json))
+            self.assertFalse(is_changed(ansible_exit_json))
+
+    def test_delete_job_check_mode_job_in_progress(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request_job_in_progress,
+                            delete_request=mock_delete_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
+                set_module_args({
+                    'category': 'Jobs',
+                    'command': 'DeleteJob',
+                    'baseuri': MOCK_BASE_URI,
+                    'job_name': MOCK_JOB_NAME,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21',
+                    '_ansible_check_mode': True
+                })
+                module.main()
+            self.assertEqual("Cannot delete job because it is in progress.", get_exception_message(ansible_fail_json))

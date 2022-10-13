@@ -8,6 +8,8 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
+import urllib
+
 DOCUMENTATION = '''
 ---
 module: ocapi_command
@@ -104,6 +106,14 @@ EXAMPLES = '''
       baseuri: "iom1.wdc.com"
       username: "{{ username }}"
       password: "{{ password }}"
+  - name: Delete Job
+    community.general.ocapi_command:
+      category: Jobs
+      command: DeleteJob
+      job_name: FirmwareUpdate
+      baseuri: "{{ baseuri }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
 '''
 
 RETURN = '''
@@ -113,8 +123,8 @@ msg:
     type: str
     sample: "Action was successful"
 
-statusMonitor:
-    description: Token to use to monitor status of the operation.  Returned for async commands such as Firmware Update, Firmware Activate.
+jobUri:
+    description: URI to use to monitor status of the operation.  Returned for async commands such as Firmware Update, Firmware Activate.
     returned: when supported
     type: str
     sample: "https://ioma.wdc.com/Storage/Devices/openflex-data24-usalp03020qb0003/Jobs/FirmwareUpdate/"
@@ -136,7 +146,8 @@ from ansible.module_utils.common.text.converters import to_native
 CATEGORY_COMMANDS_ALL = {
     "Chassis": ["IndicatorLedOn", "IndicatorLedOff"],
     "Systems": ["PowerGracefulRestart"],
-    "Update": ["FWUpload", "FWUpdate", "FWActivate"]
+    "Update": ["FWUpload", "FWUpdate", "FWActivate"],
+    "Jobs": ["DeleteJob"]
 }
 
 
@@ -147,6 +158,7 @@ def main():
             category=dict(required=True),
             command=dict(required=True, type='str'),
             ioms=dict(type='list', elements='str'),
+            job_name=dict(),
             baseuri=dict(),
             update_image_path=dict(type='str'),
             username=dict(required=True),
@@ -209,6 +221,13 @@ def main():
             result = ocapi_utils.update_firmware_image()
         elif command == "FWActivate":
             result = ocapi_utils.activate_firmware_image()
+    elif category == "Jobs":
+        if command == "DeleteJob":
+            job_name = module.params.get("job_name")
+            if job_name is None:
+                module.fail_json("Missing job_name")
+            job_uri = urllib.parse.urljoin(root_uris[0], "Jobs/" + job_name)  # ToDo: Only support baseuri
+            result = ocapi_utils.delete_job(job_uri)
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))

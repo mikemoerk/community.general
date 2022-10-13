@@ -18,6 +18,7 @@ from ansible.module_utils.six.moves.urllib.error import URLError, HTTPError
 GET_HEADERS = {'accept': 'application/json'}
 PUT_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
 POST_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
+DELETE_HEADERS = {'accept': 'application/json'}
 
 HEALTH_OK = 5
 
@@ -80,6 +81,36 @@ class OcapiUtils(object):
         except Exception as e:
             return {'ret': False,
                     'msg': "Failed GET request to '%s': '%s'" % (uri, to_text(e))}
+        return {'ret': True, 'data': data, 'headers': headers}
+
+    def delete_request(self, uri, etag=None):
+        req_headers = dict(DELETE_HEADERS)
+        if etag is not None:
+            req_headers['If-Match'] = etag
+        username, password, basic_auth = self._auth_params()
+        try:
+            resp = open_url(uri, method="DELETE", headers=req_headers,
+                            url_username=username, url_password=password,
+                            force_basic_auth=basic_auth, validate_certs=False,
+                            follow_redirects='all',
+                            use_proxy=True, timeout=self.timeout)
+            if resp.status != 204:
+                data = json.loads(to_native(resp.read()))
+            else:
+                data = ""
+            headers = dict((k.lower(), v) for (k, v) in resp.info().items())
+        except HTTPError as e:
+            return {'ret': False,
+                    'msg': "HTTP Error %s on DELETE request to '%s'"
+                           % (e.code, uri),
+                    'status': e.code}
+        except URLError as e:
+            return {'ret': False, 'msg': "URL Error on DELETE request to '%s': '%s'"
+                                         % (uri, e.reason)}
+        # Almost all errors should be caught above, but just in case
+        except Exception as e:
+            return {'ret': False,
+                    'msg': "Failed DELETE request to '%s': '%s'" % (uri, to_text(e))}
         return {'ret': True, 'data': data, 'headers': headers}
 
     def put_request(self, uri, payload, etag=None):
@@ -300,7 +331,7 @@ class OcapiUtils(object):
         if response['ret'] is False:
             return response
 
-        return {'ret': True, 'statusMonitor': response["headers"]["location"]}
+        return {'ret': True, 'jobUri': response["headers"]["location"]}
 
     def activate_firmware_image(self):
         """Perform a Firmware Activate on the OCAPI storage device."""
@@ -325,7 +356,7 @@ class OcapiUtils(object):
         if response['ret'] is False:
             return response
 
-        return {'ret': True, 'statusMonitor': response["headers"]["location"]}
+        return {'ret': True, 'jobUri': response["headers"]["location"]}
 
     def get_job_status(self, job_uri):
         """Get the status of a job.
@@ -363,3 +394,55 @@ class OcapiUtils(object):
             "status": response["data"]["Status"]
         }
         return return_value
+
+    def delete_job(self, job_uri):
+        # We have to do a GET to obtain the Etag.  It's required on the DELETE.
+        response = self.get_request(job_uri)
+        if response['ret'] is False:
+            if response['status'] == 404:
+                return {
+                    # Cannot delete job because it's already gone.
+                    'ret': True,
+                    'changed': False
+                }
+            return response
+        if 'etag' not in response['headers']:
+            return {'ret': False, 'msg': 'Etag not found in response.'}
+        etag = response['headers']['etag']
+
+        # Do the DELETE (unless we are in check mode)
+        if self.module.check_mode:
+            response = self.get_request(job_uri)
+            if response['ret'] is False:
+                if response['status'] == 404:
+                    return {
+                        'ret': True,
+                        'changed': False,
+                        'msg': 'Job already deleted.'
+                    }
+                else:
+                    return response
+            if response['data']['PercentComplete'] != 100:
+                return {
+                    'ret': False,
+                    'changed': False,
+                    'msg': 'Cannot delete job because it is in progress.'
+                }
+            return {
+                'ret': True,
+                'changed': True,
+                'msg': 'Update not performed in check mode.'
+            }
+        response = self.delete_request(job_uri, etag)
+        if response['ret'] is False:
+            raise RuntimeError(response)
+            if response['status'] == 404:
+                return {
+                    'ret': True,
+                    'changed': False
+                }
+            return response
+        return {
+            'ret': True,
+            'changed': True
+        }
