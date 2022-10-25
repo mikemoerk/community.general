@@ -9,6 +9,8 @@ from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
+from urllib.parse import urljoin
+
 DOCUMENTATION = '''
 ---
 module: ocapi_info
@@ -51,9 +53,9 @@ options:
       - Timeout in seconds for URL requests to OOB controller.
     default: 10
     type: int
-  jobUri:
+  jobName:
     description:
-      - URI for fetching a job status.
+      - Name of job for fetching status.
     type: str
 
 
@@ -66,7 +68,7 @@ EXAMPLES = '''
       category: Status
       command: JobStatus
       ioms: "{{ ioms }}"
-      jobUri: https://ioma.wdc.com/Storage/Devices/openflex-data24-usalp03020qb0003/Jobs/FirmwareUpdate/
+      jobName:FirmwareUpdate
       username: "{{ username }}"
       password: "{{ password }}"
 '''
@@ -155,7 +157,7 @@ def main():
         argument_spec=dict(
             category=dict(required=True),
             command=dict(required=True, type='str'),
-            jobUri=dict(type='str'),
+            jobName=dict(type='str'),
             ioms=dict(type='list', elements='str'),
             baseuri=dict(),
             username=dict(required=True),
@@ -202,10 +204,11 @@ def main():
     # Organize by Categories / Commands
     if category == "Status":
         if command == "JobStatus":
-            if module.params.get("jobUri") is None:
+            if module.params.get("jobName") is None:
                 module.fail_json(msg=to_native(
-                    "jobUri required for JobStatus command."))
-            result = ocapi_utils.get_job_status(module.params['jobUri'])
+                    "jobName required for JobStatus command."))
+            job_uri = urljoin(root_uris[0], 'Jobs/' + module.params["jobName"])
+            result = ocapi_utils.get_job_status(job_uri)
         elif command == "SystemStatus":
             result = ocapi_utils.get_system_status()
 

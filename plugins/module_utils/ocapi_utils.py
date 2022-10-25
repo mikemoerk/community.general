@@ -365,7 +365,20 @@ class OcapiUtils(object):
         """
         response = self.get_request(job_uri)
         if response['ret'] is False:
-            return response
+            if response.get('status') == 404:
+                # Job not found -- assume 0%
+                return {
+                    "ret": True,
+                    "percentComplete": 0,
+                    "operationStatus": "Not Available",
+                    "operationStatusId": 1,
+                    "operationHealth": None,
+                    "operationHealthId": None,
+                    "details": "Job does not exist.",
+                    "jobExists": False
+                }
+            else:
+                return response
         details = response["data"]["Status"].get("Details")
         if type(details) is str:
             details = [details]
@@ -377,7 +390,8 @@ class OcapiUtils(object):
             "operationStatusId": response["data"]["Status"]["State"]["ID"],
             "operationHealth": health_list[0]["Name"] if len(health_list) > 0 else None,
             "operationHealthId": health_list[0]["ID"] if len(health_list) > 0 else None,
-            "details": details
+            "details": details,
+            "jobExists": True
         }
         return return_value
 
@@ -435,7 +449,6 @@ class OcapiUtils(object):
             }
         response = self.delete_request(job_uri, etag)
         if response['ret'] is False:
-            raise RuntimeError(response)
             if response['status'] == 404:
                 return {
                     'ret': True,
