@@ -19,7 +19,7 @@ class TestOcapiUtils(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.mkdtemp()
         self.utils = OcapiUtils(creds={"user": "a_user", "pswd": "a_password"},
-                                root_uris=["fakeUri"],
+                                base_uri="fakeUri",
                                 timeout=30,
                                 module=None)
 

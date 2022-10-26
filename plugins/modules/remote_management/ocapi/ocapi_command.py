@@ -8,8 +8,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-import urllib
-
 DOCUMENTATION = '''
 ---
 module: ocapi_command
@@ -30,18 +28,19 @@ options:
       - Command to execute on OOB controller.
     type: str
   baseuri:
+    required: true
     description:
-      - Base URI of OOB controller.  Must include this or I(ioms).
+      - Base URI of OOB controller.
     type: str
-  ioms:
-    description:
-      - List of IOM FQDNs for the enclosure.  Must include this or I(baseuri).
-    type: list
-    elements: str
   update_image_path:
     required: false
     description:
       - For FWUpload, the path on the local filesystem of the firmware update image.
+    type: str
+  job_name:
+    required: false
+    description:
+      - For DeleteJob command, the name of the job to delete.
     type: str
   username:
     required: true
@@ -67,21 +66,21 @@ EXAMPLES = '''
     community.general.ocapi_command:
       category: Chassis
       command: IndicatorLedOn
-      ioms: "{{ ioms }}"
+      baseuri: "{{ baseuri }}"
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Set chassis indicator LED to off
     community.general.ocapi_command:
       category: Chassis
       command: IndicatorLedOff
-      ioms: "{{ ioms }}"
+      baseuri: "{{ baseuri }}"
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Reset Enclosure
     community.general.ocapi_command:
       category: Systems
       command: PowerGracefulRestart
-      ioms: "{{ ioms }}"
+      baseuri: "{{ baseuri }}"
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Firmware Upload
@@ -123,6 +122,7 @@ msg:
     type: str
     sample: "Action was successful"
 
+# ToDo: does this still return jobUri????
 jobUri:
     description: URI to use to monitor status of the operation.  Returned for async commands such as Firmware Update, Firmware Activate.
     returned: when supported
@@ -140,7 +140,10 @@ operationStatusId:
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.general.plugins.module_utils.ocapi_utils import OcapiUtils
 from ansible.module_utils.common.text.converters import to_native
-
+try:
+    from urlparse import urljoin  # Python 2
+except ImportError:
+    from urllib.parse import quote_plus, urljoin  # Python 3+
 
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
@@ -157,17 +160,13 @@ def main():
         argument_spec=dict(
             category=dict(required=True),
             command=dict(required=True, type='str'),
-            ioms=dict(type='list', elements='str'),
-            job_name=dict(),
-            baseuri=dict(),
+            job_name=dict(type='str'),
+            baseuri=dict(required=True, type='str'),
             update_image_path=dict(type='str'),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             timeout=dict(type='int', default=10)
         ),
-        required_one_of=[
-            ('ioms', 'baseuri')
-        ],
         supports_check_mode=True
     )
 
@@ -183,16 +182,8 @@ def main():
     # timeout
     timeout = module.params['timeout']
 
-    # Build root URI(s)
-    if module.params.get("baseuri") is not None:
-        root_uris = ["https://" + module.params['baseuri']]
-    else:
-        root_uris = [
-            "https://" + iom for iom in module.params['ioms']
-        ]
-    if len(root_uris) == 0:
-        module.fail_json(msg=to_native("Must specify base uri or non-empty ioms list."))
-    ocapi_utils = OcapiUtils(creds, root_uris, timeout, module)
+    base_uri = "https://" + module.params["baseuri"]
+    ocapi_utils = OcapiUtils(creds, base_uri, timeout, module)
 
     # Check that Category is valid
     if category not in CATEGORY_COMMANDS_ALL:
@@ -210,8 +201,6 @@ def main():
         if command.startswith("Power"):
             result = ocapi_utils.manage_system_power(command)
     elif category == "Update":
-        if module.params.get("ioms") is not None:
-            module.fail_json(msg="Cannot specify ioms list for firmware operations.  Specify baseuri instead.")
         if command == "FWUpload":
             update_image_path = module.params.get("update_image_path")
             if update_image_path is None:
@@ -226,7 +215,7 @@ def main():
             job_name = module.params.get("job_name")
             if job_name is None:
                 module.fail_json("Missing job_name")
-            job_uri = urllib.parse.urljoin(root_uris[0], "Jobs/" + job_name)  # ToDo: Only support baseuri
+            job_uri = urljoin(base_uri, "Jobs/" + job_name)
             result = ocapi_utils.delete_job(job_uri)
 
     if result['ret'] is False:

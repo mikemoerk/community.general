@@ -16,6 +16,10 @@ from ansible.module_utils import basic
 import ansible_collections.community.general.plugins.modules.remote_management.ocapi.ocapi_command as module
 from ansible_collections.community.general.tests.unit.plugins.modules.utils import AnsibleExitJson, AnsibleFailJson
 from ansible_collections.community.general.tests.unit.plugins.modules.utils import set_module_args, exit_json, fail_json
+try:
+    from urlparse import urljoin  # Python 2
+except ImportError:
+    from urllib.parse import quote_plus, urljoin  # Python 3+
 
 MOCK_BASE_URI = "mockBaseUri/"
 OPERATING_SYSTEM_URI = "OperatingSystem"
@@ -62,6 +66,9 @@ MOCK_HTTP_RESPONSE_JOB_IN_PROGRESS = {
     "ret": True,
     "data": {
         "PercentComplete": 99
+    },
+    "headers": {
+        "etag": "12345"
     }
 }
 
@@ -69,6 +76,9 @@ MOCK_HTTP_RESPONSE_JOB_COMPLETE = {
     "ret": True,
     "data": {
         "PercentComplete": 100
+    },
+    "headers": {
+        "etag": "12345"
     }
 }
 
@@ -103,7 +113,7 @@ def mock_get_request_job_does_not_exist(*args, **kwargs):
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI:
         return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
-    elif url == 'https://' + MOCK_BASE_URI + "/Jobs/" + MOCK_JOB_NAME + "/":
+    elif url == urljoin('https://' + MOCK_BASE_URI, "Jobs/" + MOCK_JOB_NAME):
         return MOCK_404_RESPONSE
     raise RuntimeError("Illegal call to get_request in test: " + args[1])
 
@@ -112,7 +122,7 @@ def mock_get_request_job_in_progress(*args, **kwargs):
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI:
         return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
-    elif url == 'https://' + MOCK_BASE_URI + "/Jobs/" + MOCK_JOB_NAME + "/":
+    elif url == urljoin('https://' + MOCK_BASE_URI, "Jobs/" + MOCK_JOB_NAME):
         return MOCK_HTTP_RESPONSE_JOB_IN_PROGRESS
     raise RuntimeError("Illegal call to get_request in test: " + args[1])
 
@@ -121,7 +131,7 @@ def mock_get_request_job_complete(*args, **kwargs):
     url = args[1]
     if url == 'https://' + MOCK_BASE_URI:
         return MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG
-    elif url == 'https://' + MOCK_BASE_URI + "/Jobs/" + MOCK_JOB_NAME + "/":
+    elif url == urljoin('https://' + MOCK_BASE_URI, "Jobs/" + MOCK_JOB_NAME):
         return MOCK_HTTP_RESPONSE_JOB_COMPLETE
     raise RuntimeError("Illegal call to get_request in test: " + args[1])
 
@@ -137,7 +147,7 @@ def mock_put_request(*args, **kwargs):
 def mock_delete_request(*args, **kwargs):
     """Mock delete request."""
     url = args[1]
-    if url == 'https://' + MOCK_BASE_URI + '/Jobs/' + MOCK_JOB_NAME + '/':
+    if url == urljoin('https://' + MOCK_BASE_URI, 'Jobs/' + MOCK_JOB_NAME):
         return MOCK_SUCCESSFUL_HTTP_RESPONSE
     raise RuntimeError("Illegal DELETE call to: " + args[1])
 
@@ -145,7 +155,7 @@ def mock_delete_request(*args, **kwargs):
 def mock_post_request(*args, **kwargs):
     """Mock post_request."""
     url = args[1]
-    if url == 'https://' + MOCK_BASE_URI + OPERATING_SYSTEM_URI:
+    if url == urljoin('https://' + MOCK_BASE_URI, OPERATING_SYSTEM_URI):
         return MOCK_SUCCESSFUL_HTTP_RESPONSE
     raise RuntimeError("Illegal POST call to: " + args[1])
 
@@ -187,22 +197,10 @@ class TestOcapiCommand(unittest.TestCase):
                 'command': 'IndicatorLedOn',
                 'username': 'USERID',
                 'password': 'PASSW0RD=21',
-                'ioms': ["iom1"],
+                'baseuri': MOCK_BASE_URI
             })
             module.main()
         self.assertIn("Invalid Category 'unknown", get_exception_message(ansible_fail_json))
-
-    def test_module_fail_when_ioms_list_empty(self):
-        with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
-            set_module_args({
-                'category': 'unknown',
-                'command': 'IndicatorLedOn',
-                'username': 'USERID',
-                'password': 'PASSW0RD=21',
-                'ioms': [],
-            })
-            module.main()
-        self.assertEqual("Must specify base uri or non-empty ioms list.", get_exception_message(ansible_fail_json))
 
     def test_set_chassis_led_indicator(self):
         """Test that we can set chassis LED indicator"""
@@ -353,24 +351,6 @@ class TestOcapiCommand(unittest.TestCase):
                 module.main()
             self.assertEqual("File does not exist.", get_exception_message(ansible_fail_json))
 
-    def test_firmware_upload_ioms(self):
-        """Test that we are not allowed to specify ioms list for FWUpload (we must specify baseuri instead)."""
-        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
-                            get_request=mock_get_request,
-                            put_request=mock_invalid_http_request):
-            with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
-                set_module_args({
-                    'category': 'Update',
-                    'command': 'FWUpload',
-                    'update_image_path': 'nonexistentfile.bin',
-                    'ioms': [MOCK_BASE_URI],
-                    'username': 'USERID',
-                    'password': 'PASSWORD=21'
-                })
-                module.main()
-            self.assertEqual("Cannot specify ioms list for firmware operations.  Specify baseuri instead.",
-                             get_exception_message(ansible_fail_json))
-
     def test_firmware_upload(self):
         filename = "fake_firmware.bin"
         filepath = os.path.join(self.tempdir, filename)
@@ -492,7 +472,7 @@ class TestOcapiCommand(unittest.TestCase):
 
     def test_delete_job(self):
         with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
-                            get_request=mock_get_request,
+                            get_request=mock_get_request_job_complete,
                             delete_request=mock_delete_request,
                             put_request=mock_invalid_http_request,
                             post_request=mock_invalid_http_request):
@@ -511,7 +491,25 @@ class TestOcapiCommand(unittest.TestCase):
 
     def test_delete_job_in_progress(self):
         with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
-                            get_request=mock_get_request,
+                            get_request=mock_get_request_job_in_progress,
+                            delete_request=mock_invalid_http_request,
+                            put_request=mock_invalid_http_request,
+                            post_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleFailJson) as ansible_fail_json:
+                set_module_args({
+                    'category': 'Jobs',
+                    'command': 'DeleteJob',
+                    'baseuri': MOCK_BASE_URI,
+                    'job_name': MOCK_JOB_NAME,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual("Cannot delete job because it is in progress.", get_exception_message(ansible_fail_json))
+
+    def test_delete_job_in_progress_only_on_delete(self):
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request_job_complete,
                             delete_request=mock_http_request_conflict,
                             put_request=mock_invalid_http_request,
                             post_request=mock_invalid_http_request):
@@ -525,7 +523,7 @@ class TestOcapiCommand(unittest.TestCase):
                     'password': 'PASSWORD=21'
                 })
                 module.main()
-            self.assertEqual("Conflict", get_exception_message(ansible_fail_json))
+            self.assertEqual("Cannot delete job because it is in progress.", get_exception_message(ansible_fail_json))
 
     def test_delete_job_check_mode(self):
         with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",

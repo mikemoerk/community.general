@@ -25,27 +25,11 @@ HEALTH_OK = 5
 
 class OcapiUtils(object):
 
-    def __init__(self, creds, root_uris, timeout, module):
-        self.root_uri = root_uris[0]
+    def __init__(self, creds, base_uri, timeout, module):
+        self.root_uri = base_uri
         self.creds = creds
         self.timeout = timeout
         self.module = module
-        # Update the root URI if the first one is not a valid OCAPI URI.
-        self._set_root_uri(root_uris)
-
-    def _set_root_uri(self, root_uris):
-        """Set the root URI from a list of options.
-
-        If the current root URI is good, just keep it.  Else cycle through our options until we find a good one.
-        A URI is considered good if a GET response is successful, returns JSON, and has a "Self" property.
-        """
-        for root_uri in root_uris:
-            response = self.get_request(root_uri)
-            if response['ret']:
-                data = response['data']
-                if "Self" in data:
-                    self.root_uri = root_uri
-                    break
 
     def _auth_params(self):
         """
@@ -412,7 +396,30 @@ class OcapiUtils(object):
     def delete_job(self, job_uri):
         # We have to do a GET to obtain the Etag.  It's required on the DELETE.
         response = self.get_request(job_uri)
-        if response['ret'] is False:
+        if response['ret'] is True and response['data']['PercentComplete'] != 100:
+            return {
+                'ret': False,
+                'changed': False,
+                'msg': 'Cannot delete job because it is in progress.'
+            }
+        if self.module.check_mode:
+            if response['ret'] is False:
+                if response['status'] == 404:
+                    return {
+                        'ret': True,
+                        'changed': False,
+                        'msg': 'Job already deleted.'
+                    }
+                else:
+                    return response
+            else:
+                return {
+                    'ret': True,
+                    'changed': True,
+                    'msg': 'Update not performed in check mode.'
+                }
+        elif response['ret'] is False:
+            # Not check mode
             if response['status'] == 404:
                 return {
                     # Cannot delete job because it's already gone.
@@ -425,34 +432,18 @@ class OcapiUtils(object):
         etag = response['headers']['etag']
 
         # Do the DELETE (unless we are in check mode)
-        if self.module.check_mode:
-            response = self.get_request(job_uri)
-            if response['ret'] is False:
-                if response['status'] == 404:
-                    return {
-                        'ret': True,
-                        'changed': False,
-                        'msg': 'Job already deleted.'
-                    }
-                else:
-                    return response
-            if response['data']['PercentComplete'] != 100:
-                return {
-                    'ret': False,
-                    'changed': False,
-                    'msg': 'Cannot delete job because it is in progress.'
-                }
-            return {
-                'ret': True,
-                'changed': True,
-                'msg': 'Update not performed in check mode.'
-            }
         response = self.delete_request(job_uri, etag)
         if response['ret'] is False:
             if response['status'] == 404:
                 return {
                     'ret': True,
                     'changed': False
+                }
+            elif response['status'] == 409:
+                return {
+                    'ret': False,
+                    'changed': False,
+                    'msg': 'Cannot delete job because it is in progress.'
                 }
             return response
         return {
