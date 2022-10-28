@@ -156,6 +156,7 @@ def main():
             command=dict(required=True, type='str'),
             job_name=dict(type='str'),
             baseuri=dict(required=True, type='str'),
+            proxy_slot_number=dict(type='int'),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             timeout=dict(type='int', default=10)
@@ -176,7 +177,8 @@ def main():
     timeout = module.params['timeout']
 
     base_uri = "https://" + module.params["baseuri"]
-    ocapi_utils = OcapiUtils(creds, base_uri, timeout, module)
+    proxy_slot_number = module.params.get("proxy_slot_number")
+    ocapi_utils = OcapiUtils(creds, base_uri, proxy_slot_number, timeout, module)
 
     # Check that Category is valid
     if category not in CATEGORY_COMMANDS_ALL:

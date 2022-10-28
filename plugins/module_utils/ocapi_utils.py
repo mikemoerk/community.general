@@ -13,7 +13,10 @@ from ansible.module_utils.urls import open_url
 from ansible.module_utils.common.text.converters import to_native
 from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.six.moves.urllib.error import URLError, HTTPError
-
+try:
+    from urlparse import urlparse  # Python 2
+except ImportError:
+    from urllib.parse import urlparse  # Python 3+
 
 GET_HEADERS = {'accept': 'application/json'}
 PUT_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
@@ -25,8 +28,9 @@ HEALTH_OK = 5
 
 class OcapiUtils(object):
 
-    def __init__(self, creds, base_uri, timeout, module):
+    def __init__(self, creds, base_uri, proxy_slot_number, timeout, module):
         self.root_uri = base_uri
+        self.proxy_slot_number = proxy_slot_number
         self.creds = creds
         self.timeout = timeout
         self.module = module
@@ -155,6 +159,13 @@ class OcapiUtils(object):
                     'msg': "Failed POST request to '%s': '%s'" % (uri, to_text(e))}
         return {'ret': True, 'headers': headers, 'resp': resp}
 
+    def get_uri_with_slot_number_query_param(self, uri):
+        if self.proxy_slot_number is not None:
+            parsed_url = urlparse(uri)
+            return parsed_url._replace(query="slotnumber=" + str(self.proxy_slot_number)).geturl()
+        else:
+            return uri
+
     def manage_system_power(self, command):
         """Process a command to manage the system power.
 
@@ -162,6 +173,7 @@ class OcapiUtils(object):
         """
         if command == "PowerGracefulRestart":
             resource_uri = self.root_uri
+            resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
 
             # Get the resource so that we have the Etag
             response = self.get_request(resource_uri)
@@ -203,6 +215,7 @@ class OcapiUtils(object):
         key = "IndicatorLED"
         if resource_uri is None:
             resource_uri = self.root_uri
+        resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
 
         payloads = {
             'IndicatorLedOn': {
@@ -278,6 +291,7 @@ class OcapiUtils(object):
         if not (os.path.exists(update_image_path) and os.path.isfile(update_image_path)):
             return {'ret': False, 'msg': 'File does not exist.'}
         url = self.root_uri + "OperatingSystem"
+        url = self.get_uri_with_slot_number_query_param(url)
         content_type, b_form_data = self.prepare_multipart_firmware_upload(update_image_path)
 
         # Post the firmware (unless we are in check mode)
@@ -295,6 +309,7 @@ class OcapiUtils(object):
     def update_firmware_image(self):
         """Perform a Firmware Update on the OCAPI storage device."""
         resource_uri = self.root_uri
+        resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
         if response['ret'] is False:
@@ -320,6 +335,7 @@ class OcapiUtils(object):
     def activate_firmware_image(self):
         """Perform a Firmware Activate on the OCAPI storage device."""
         resource_uri = self.root_uri
+        resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
         if 'etag' not in response['headers']:
@@ -347,6 +363,7 @@ class OcapiUtils(object):
 
         :param str job_uri: The URI of the job's status monitor.
         """
+        job_uri = self.get_uri_with_slot_number_query_param(job_uri)
         response = self.get_request(job_uri)
         if response['ret'] is False:
             if response.get('status') == 404:
@@ -384,7 +401,9 @@ class OcapiUtils(object):
 
         Refer to OCAPI documentation for details of the return data.
         """
-        response = self.get_request(self.root_uri)
+        uri = self.root_uri
+        uri = self.get_uri_with_slot_number_query_param(uri)
+        response = self.get_request(uri)
         if response['ret'] is False:
             return response
         return_value = {
@@ -394,6 +413,7 @@ class OcapiUtils(object):
         return return_value
 
     def delete_job(self, job_uri):
+        job_uri = self.get_uri_with_slot_number_query_param(job_uri)
         # We have to do a GET to obtain the Etag.  It's required on the DELETE.
         response = self.get_request(job_uri)
         if response['ret'] is True and response['data']['PercentComplete'] != 100:

@@ -32,6 +32,9 @@ options:
     description:
       - Base URI of OOB controller.
     type: str
+  proxy_slot_number:
+    description: For proxied inband requests, the slot number of the IOM.  Only applies if baseuri is a proxy server.
+    type: int
   update_image_path:
     required: false
     description:
@@ -67,6 +70,7 @@ EXAMPLES = '''
       category: Chassis
       command: IndicatorLedOn
       baseuri: "{{ baseuri }}"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Set chassis indicator LED to off
@@ -74,6 +78,7 @@ EXAMPLES = '''
       category: Chassis
       command: IndicatorLedOff
       baseuri: "{{ baseuri }}"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Reset Enclosure
@@ -81,6 +86,7 @@ EXAMPLES = '''
       category: Systems
       command: PowerGracefulRestart
       baseuri: "{{ baseuri }}"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Firmware Upload
@@ -88,6 +94,7 @@ EXAMPLES = '''
       category: Update
       command: FWUpload
       baseuri: "iom1.wdc.com"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
       update_image_path: "/path/to/firmware.tar.gz"
@@ -96,6 +103,7 @@ EXAMPLES = '''
       category: Update
       command: FWUpdate
       baseuri: "iom1.wdc.com"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Firmware Activate
@@ -103,6 +111,7 @@ EXAMPLES = '''
       category: Update
       command: FWActivate
       baseuri: "iom1.wdc.com"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
   - name: Delete Job
@@ -111,6 +120,7 @@ EXAMPLES = '''
       command: DeleteJob
       job_name: FirmwareUpdate
       baseuri: "{{ baseuri }}"
+      proxy_slot_number: 2
       username: "{{ username }}"
       password: "{{ password }}"
 '''
@@ -122,7 +132,6 @@ msg:
     type: str
     sample: "Action was successful"
 
-# ToDo: does this still return jobUri????
 jobUri:
     description: URI to use to monitor status of the operation.  Returned for async commands such as Firmware Update, Firmware Activate.
     returned: when supported
@@ -162,6 +171,7 @@ def main():
             command=dict(required=True, type='str'),
             job_name=dict(type='str'),
             baseuri=dict(required=True, type='str'),
+            proxy_slot_number=dict(type='int'),
             update_image_path=dict(type='str'),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
@@ -183,7 +193,8 @@ def main():
     timeout = module.params['timeout']
 
     base_uri = "https://" + module.params["baseuri"]
-    ocapi_utils = OcapiUtils(creds, base_uri, timeout, module)
+    proxy_slot_number = module.params.get("proxy_slot_number")
+    ocapi_utils = OcapiUtils(creds, base_uri, proxy_slot_number, timeout, module)
 
     # Check that Category is valid
     if category not in CATEGORY_COMMANDS_ALL:
