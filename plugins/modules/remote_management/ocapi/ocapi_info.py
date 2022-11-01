@@ -33,6 +33,9 @@ options:
     description:
       - Base URI of OOB controller.
     type: str
+  proxy_slot_number:
+    description: For proxied inband requests, the slot number of the IOM.  Only applies if baseuri is a proxy server.
+    type: int
   username:
     required: true
     description:
