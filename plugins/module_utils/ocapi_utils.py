@@ -13,38 +13,27 @@ from ansible.module_utils.urls import open_url
 from ansible.module_utils.common.text.converters import to_native
 from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.six.moves.urllib.error import URLError, HTTPError
-
+try:
+    from urlparse import urlparse  # Python 2
+except ImportError:
+    from urllib.parse import urlparse  # Python 3+
 
 GET_HEADERS = {'accept': 'application/json'}
 PUT_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
 POST_HEADERS = {'content-type': 'application/json', 'accept': 'application/json'}
+DELETE_HEADERS = {'accept': 'application/json'}
 
 HEALTH_OK = 5
 
 
 class OcapiUtils(object):
 
-    def __init__(self, creds, root_uris, timeout, module):
-        self.root_uri = root_uris[0]
+    def __init__(self, creds, base_uri, proxy_slot_number, timeout, module):
+        self.root_uri = base_uri
+        self.proxy_slot_number = proxy_slot_number
         self.creds = creds
         self.timeout = timeout
         self.module = module
-        # Update the root URI if the first one is not a valid OCAPI URI.
-        self._set_root_uri(root_uris)
-
-    def _set_root_uri(self, root_uris):
-        """Set the root URI from a list of options.
-
-        If the current root URI is good, just keep it.  Else cycle through our options until we find a good one.
-        A URI is considered good if a GET response is successful, returns JSON, and has a "Self" property.
-        """
-        for root_uri in root_uris:
-            response = self.get_request(root_uri)
-            if response['ret']:
-                data = response['data']
-                if "Self" in data:
-                    self.root_uri = root_uri
-                    break
 
     def _auth_params(self):
         """
@@ -80,6 +69,36 @@ class OcapiUtils(object):
         except Exception as e:
             return {'ret': False,
                     'msg': "Failed GET request to '%s': '%s'" % (uri, to_text(e))}
+        return {'ret': True, 'data': data, 'headers': headers}
+
+    def delete_request(self, uri, etag=None):
+        req_headers = dict(DELETE_HEADERS)
+        if etag is not None:
+            req_headers['If-Match'] = etag
+        username, password, basic_auth = self._auth_params()
+        try:
+            resp = open_url(uri, method="DELETE", headers=req_headers,
+                            url_username=username, url_password=password,
+                            force_basic_auth=basic_auth, validate_certs=False,
+                            follow_redirects='all',
+                            use_proxy=True, timeout=self.timeout)
+            if resp.status != 204:
+                data = json.loads(to_native(resp.read()))
+            else:
+                data = ""
+            headers = dict((k.lower(), v) for (k, v) in resp.info().items())
+        except HTTPError as e:
+            return {'ret': False,
+                    'msg': "HTTP Error %s on DELETE request to '%s'"
+                           % (e.code, uri),
+                    'status': e.code}
+        except URLError as e:
+            return {'ret': False, 'msg': "URL Error on DELETE request to '%s': '%s'"
+                                         % (uri, e.reason)}
+        # Almost all errors should be caught above, but just in case
+        except Exception as e:
+            return {'ret': False,
+                    'msg': "Failed DELETE request to '%s': '%s'" % (uri, to_text(e))}
         return {'ret': True, 'data': data, 'headers': headers}
 
     def put_request(self, uri, payload, etag=None):
@@ -140,6 +159,13 @@ class OcapiUtils(object):
                     'msg': "Failed POST request to '%s': '%s'" % (uri, to_text(e))}
         return {'ret': True, 'headers': headers, 'resp': resp}
 
+    def get_uri_with_slot_number_query_param(self, uri):
+        if self.proxy_slot_number is not None:
+            parsed_url = urlparse(uri)
+            return parsed_url._replace(query="slotnumber=" + str(self.proxy_slot_number)).geturl()
+        else:
+            return uri
+
     def manage_system_power(self, command):
         """Process a command to manage the system power.
 
@@ -147,6 +173,7 @@ class OcapiUtils(object):
         """
         if command == "PowerGracefulRestart":
             resource_uri = self.root_uri
+            resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
 
             # Get the resource so that we have the Etag
             response = self.get_request(resource_uri)
@@ -188,6 +215,7 @@ class OcapiUtils(object):
         key = "IndicatorLED"
         if resource_uri is None:
             resource_uri = self.root_uri
+        resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
 
         payloads = {
             'IndicatorLedOn': {
@@ -263,6 +291,7 @@ class OcapiUtils(object):
         if not (os.path.exists(update_image_path) and os.path.isfile(update_image_path)):
             return {'ret': False, 'msg': 'File does not exist.'}
         url = self.root_uri + "OperatingSystem"
+        url = self.get_uri_with_slot_number_query_param(url)
         content_type, b_form_data = self.prepare_multipart_firmware_upload(update_image_path)
 
         # Post the firmware (unless we are in check mode)
@@ -280,6 +309,7 @@ class OcapiUtils(object):
     def update_firmware_image(self):
         """Perform a Firmware Update on the OCAPI storage device."""
         resource_uri = self.root_uri
+        resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
         if response['ret'] is False:
@@ -300,11 +330,12 @@ class OcapiUtils(object):
         if response['ret'] is False:
             return response
 
-        return {'ret': True, 'statusMonitor': response["headers"]["location"]}
+        return {'ret': True, 'jobUri': response["headers"]["location"]}
 
     def activate_firmware_image(self):
         """Perform a Firmware Activate on the OCAPI storage device."""
         resource_uri = self.root_uri
+        resource_uri = self.get_uri_with_slot_number_query_param(resource_uri)
         # We have to do a GET to obtain the Etag.  It's required on the PUT.
         response = self.get_request(resource_uri)
         if 'etag' not in response['headers']:
@@ -325,16 +356,30 @@ class OcapiUtils(object):
         if response['ret'] is False:
             return response
 
-        return {'ret': True, 'statusMonitor': response["headers"]["location"]}
+        return {'ret': True, 'jobUri': response["headers"]["location"]}
 
     def get_job_status(self, job_uri):
         """Get the status of a job.
 
         :param str job_uri: The URI of the job's status monitor.
         """
+        job_uri = self.get_uri_with_slot_number_query_param(job_uri)
         response = self.get_request(job_uri)
         if response['ret'] is False:
-            return response
+            if response.get('status') == 404:
+                # Job not found -- assume 0%
+                return {
+                    "ret": True,
+                    "percentComplete": 0,
+                    "operationStatus": "Not Available",
+                    "operationStatusId": 1,
+                    "operationHealth": None,
+                    "operationHealthId": None,
+                    "details": "Job does not exist.",
+                    "jobExists": False
+                }
+            else:
+                return response
         details = response["data"]["Status"].get("Details")
         if type(details) is str:
             details = [details]
@@ -346,7 +391,8 @@ class OcapiUtils(object):
             "operationStatusId": response["data"]["Status"]["State"]["ID"],
             "operationHealth": health_list[0]["Name"] if len(health_list) > 0 else None,
             "operationHealthId": health_list[0]["ID"] if len(health_list) > 0 else None,
-            "details": details
+            "details": details,
+            "jobExists": True
         }
         return return_value
 
@@ -355,7 +401,9 @@ class OcapiUtils(object):
 
         Refer to OCAPI documentation for details of the return data.
         """
-        response = self.get_request(self.root_uri)
+        uri = self.root_uri
+        uri = self.get_uri_with_slot_number_query_param(uri)
+        response = self.get_request(uri)
         if response['ret'] is False:
             return response
         return_value = {
@@ -363,3 +411,62 @@ class OcapiUtils(object):
             "status": response["data"]["Status"]
         }
         return return_value
+
+    def delete_job(self, job_uri):
+        job_uri = self.get_uri_with_slot_number_query_param(job_uri)
+        # We have to do a GET to obtain the Etag.  It's required on the DELETE.
+        response = self.get_request(job_uri)
+        if response['ret'] is True and response['data']['PercentComplete'] != 100:
+            return {
+                'ret': False,
+                'changed': False,
+                'msg': 'Cannot delete job because it is in progress.'
+            }
+        if self.module.check_mode:
+            if response['ret'] is False:
+                if response['status'] == 404:
+                    return {
+                        'ret': True,
+                        'changed': False,
+                        'msg': 'Job already deleted.'
+                    }
+                else:
+                    return response
+            else:
+                return {
+                    'ret': True,
+                    'changed': True,
+                    'msg': 'Update not performed in check mode.'
+                }
+        elif response['ret'] is False:
+            # Not check mode
+            if response['status'] == 404:
+                return {
+                    # Cannot delete job because it's already gone.
+                    'ret': True,
+                    'changed': False
+                }
+            return response
+        if 'etag' not in response['headers']:
+            return {'ret': False, 'msg': 'Etag not found in response.'}
+        etag = response['headers']['etag']
+
+        # Do the DELETE (unless we are in check mode)
+        response = self.delete_request(job_uri, etag)
+        if response['ret'] is False:
+            if response['status'] == 404:
+                return {
+                    'ret': True,
+                    'changed': False
+                }
+            elif response['status'] == 409:
+                return {
+                    'ret': False,
+                    'changed': False,
+                    'msg': 'Cannot delete job because it is in progress.'
+                }
+            return response
+        return {
+            'ret': True,
+            'changed': True
+        }

@@ -9,6 +9,7 @@ from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
+
 DOCUMENTATION = '''
 ---
 module: ocapi_info
@@ -28,14 +29,13 @@ options:
       - Command to execute on OOB controller.
     type: str
   baseuri:
+    required: true
     description:
-      - Base URI of OOB controller.  Must include this or I(ioms).
+      - Base URI of OOB controller.
     type: str
-  ioms:
-    description:
-      - List of IOM FQDNs for the enclosure.  Must include this or I(baseuri).
-    type: list
-    elements: str
+  proxy_slot_number:
+    description: For proxied inband requests, the slot number of the IOM.  Only applies if baseuri is a proxy server.
+    type: int
   username:
     required: true
     description:
@@ -51,9 +51,9 @@ options:
       - Timeout in seconds for URL requests to OOB controller.
     default: 10
     type: int
-  jobUri:
+  job_name:
     description:
-      - URI for fetching a job status.
+      - Name of job for fetching status.
     type: str
 
 
@@ -65,8 +65,8 @@ EXAMPLES = '''
     community.general.ocapi_info:
       category: Status
       command: JobStatus
-      ioms: "{{ ioms }}"
-      statusMonitor: https://ioma.wdc.com/Storage/Devices/openflex-data24-usalp03020qb0003/Jobs/FirmwareUpdate/
+      baseuri: "http://iom1.wdc.com"
+      jobName: FirmwareUpdate
       username: "{{ username }}"
       password: "{{ password }}"
 '''
@@ -131,18 +131,23 @@ status:
         "State": {
             "ID": 16,
             "Name": "In service"
-        }
-    }
-
+            }
+       }
 '''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.general.plugins.module_utils.ocapi_utils import OcapiUtils
 from ansible.module_utils.common.text.converters import to_native
 
+try:
+    from urlparse import urljoin  # Python 2
+except ImportError:
+    from urllib.parse import quote_plus, urljoin  # Python 3+
+
+
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
-    "Status": ["JobStatus", "SystemStatus"]
+    "Jobs": ["JobStatus"]
 }
 
 
@@ -152,16 +157,13 @@ def main():
         argument_spec=dict(
             category=dict(required=True),
             command=dict(required=True, type='str'),
-            jobUri=dict(type='str'),
-            ioms=dict(type='list', elements='str'),
-            baseuri=dict(),
+            job_name=dict(type='str'),
+            baseuri=dict(required=True, type='str'),
+            proxy_slot_number=dict(type='int'),
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             timeout=dict(type='int', default=10)
         ),
-        required_one_of=[
-            ('ioms', 'baseuri')
-        ],
         supports_check_mode=True
     )
 
@@ -177,16 +179,9 @@ def main():
     # timeout
     timeout = module.params['timeout']
 
-    # Build root URI(s)
-    if module.params.get("baseuri") is not None:
-        root_uris = ["https://" + module.params['baseuri']]
-    else:
-        root_uris = [
-            "https://" + iom for iom in module.params['ioms']
-        ]
-    if len(root_uris) == 0:
-        module.fail_json(msg=to_native("Must specify base uri or non-empty ioms list."))
-    ocapi_utils = OcapiUtils(creds, root_uris, timeout, module)
+    base_uri = "https://" + module.params["baseuri"]
+    proxy_slot_number = module.params.get("proxy_slot_number")
+    ocapi_utils = OcapiUtils(creds, base_uri, proxy_slot_number, timeout, module)
 
     # Check that Category is valid
     if category not in CATEGORY_COMMANDS_ALL:
@@ -197,12 +192,13 @@ def main():
         module.fail_json(msg=to_native("Invalid Command '%s'. Valid Commands = %s" % (command, CATEGORY_COMMANDS_ALL[category])))
 
     # Organize by Categories / Commands
-    if category == "Status":
+    if category == "Jobs":
         if command == "JobStatus":
-            if module.params.get("jobUri") is None:
+            if module.params.get("job_name") is None:
                 module.fail_json(msg=to_native(
-                    "jobUri required for JobStatus command."))
-            result = ocapi_utils.get_job_status(module.params['jobUri'])
+                    "job_name required for JobStatus command."))
+            job_uri = urljoin(base_uri, 'Jobs/' + module.params["job_name"])
+            result = ocapi_utils.get_job_status(job_uri)
         elif command == "SystemStatus":
             result = ocapi_utils.get_system_status()
 
