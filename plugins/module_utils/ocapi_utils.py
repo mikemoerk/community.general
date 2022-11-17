@@ -160,6 +160,12 @@ class OcapiUtils(object):
         return {'ret': True, 'headers': headers, 'resp': resp}
 
     def get_uri_with_slot_number_query_param(self, uri):
+        """Return the URI with proxy slot number added as a query param, if there is one.
+
+        If a proxy slot number is provided, to access it, we must append it as a query parameter.
+        This method returns the given URI with the slotnumber query param added, if there is one.
+        If there is not a proxy slot number, it just returns the URI as it was passed in.
+        """
         if self.proxy_slot_number is not None:
             parsed_url = urlparse(uri)
             return parsed_url._replace(query="slotnumber=" + str(self.proxy_slot_number)).geturl()
@@ -396,32 +402,25 @@ class OcapiUtils(object):
         }
         return return_value
 
-    def get_system_status(self):
-        """Get the system status of an OCAPI target.
-
-        Refer to OCAPI documentation for details of the return data.
-        """
-        uri = self.root_uri
-        uri = self.get_uri_with_slot_number_query_param(uri)
-        response = self.get_request(uri)
-        if response['ret'] is False:
-            return response
-        return_value = {
-            "ret": True,
-            "status": response["data"]["Status"]
-        }
-        return return_value
-
     def delete_job(self, job_uri):
+        """Delete the OCAPI job referenced by the specified job_uri."""
         job_uri = self.get_uri_with_slot_number_query_param(job_uri)
         # We have to do a GET to obtain the Etag.  It's required on the DELETE.
         response = self.get_request(job_uri)
-        if response['ret'] is True and response['data']['PercentComplete'] != 100:
-            return {
-                'ret': False,
-                'changed': False,
-                'msg': 'Cannot delete job because it is in progress.'
-            }
+
+        if response['ret'] is True:
+            if 'etag' not in response['headers']:
+                return {'ret': False, 'msg': 'Etag not found in response.'}
+            else:
+                etag = response['headers']['etag']
+
+            if response['data']['PercentComplete'] != 100:
+                return {
+                    'ret': False,
+                    'changed': False,
+                    'msg': 'Cannot delete job because it is in progress.'
+                }
+
         if self.module.check_mode:
             if response['ret'] is False:
                 if response['status'] == 404:
@@ -447,9 +446,6 @@ class OcapiUtils(object):
                     'changed': False
                 }
             return response
-        if 'etag' not in response['headers']:
-            return {'ret': False, 'msg': 'Etag not found in response.'}
-        etag = response['headers']['etag']
 
         # Do the DELETE (unless we are in check mode)
         response = self.delete_request(job_uri, etag)
