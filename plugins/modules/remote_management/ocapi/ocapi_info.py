@@ -199,8 +199,6 @@ def main():
                     "job_name required for JobStatus command."))
             job_uri = urljoin(base_uri, 'Jobs/' + module.params["job_name"])
             result = ocapi_utils.get_job_status(job_uri)
-        elif command == "SystemStatus":
-            result = ocapi_utils.get_system_status()
 
     if result['ret'] is False:
         module.fail_json(msg=to_native(result['msg']))
