@@ -65,6 +65,20 @@ author: "Mike Moerk (@mikemoerk)"
 '''
 
 EXAMPLES = '''
+  - name: Set the power state to low
+    community.general.ocapi_command:
+      category: Chassis
+      command: PowerModeLow
+      baseuri: "{{ baseuri }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+  - name: Set the power state to normal
+    community.general.ocapi_command:
+      category: Chassis
+      command: PowerModeNormal
+      baseuri: "{{ baseuri }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
   - name: Set chassis indicator LED to on
     community.general.ocapi_command:
       category: Chassis
@@ -156,7 +170,7 @@ except ImportError:
 
 # More will be added as module features are expanded
 CATEGORY_COMMANDS_ALL = {
-    "Chassis": ["IndicatorLedOn", "IndicatorLedOff"],
+    "Chassis": ["IndicatorLedOn", "IndicatorLedOff", "PowerModeLow", "PowerModeNormal"],
     "Systems": ["PowerGracefulRestart"],
     "Update": ["FWUpload", "FWUpdate", "FWActivate"],
     "Jobs": ["DeleteJob"]
@@ -208,6 +222,8 @@ def main():
     if category == "Chassis":
         if command.startswith("IndicatorLed"):
             result = ocapi_utils.manage_chassis_indicator_led(command)
+        elif command.startswith("PowerMode"):
+            result = ocapi_utils.manage_system_power(command)
     elif category == "Systems":
         if command.startswith("Power"):
             result = ocapi_utils.manage_system_power(command)

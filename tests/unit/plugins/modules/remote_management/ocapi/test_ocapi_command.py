@@ -35,6 +35,10 @@ MOCK_SUCCESSFUL_HTTP_RESPONSE_LED_INDICATOR_OFF_WITH_ETAG = {
         "IndicatorLED": {
             "ID": 4,
             "Name": "Off"
+        },
+        "PowerState": {
+            "ID": 2,
+            "Name": "On"
         }
     },
     "headers": {"etag": "MockETag"}
@@ -202,8 +206,25 @@ class TestOcapiCommand(unittest.TestCase):
             module.main()
         self.assertIn("Invalid Category 'unknown", get_exception_message(ansible_fail_json))
 
+    def test_set_power_mode(self):
+        """Test that we can set chassis power mode"""
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_put_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Chassis',
+                    'command': 'PowerModeLow',
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual(ACTION_WAS_SUCCESSFUL, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
     def test_set_chassis_led_indicator(self):
-        """Test that we can set chassis LED indicator"""
+        """Test that we can set chassis LED indicator."""
         with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
                             get_request=mock_get_request,
                             put_request=mock_put_request):
@@ -217,6 +238,41 @@ class TestOcapiCommand(unittest.TestCase):
                 })
                 module.main()
             self.assertEqual(ACTION_WAS_SUCCESSFUL, get_exception_message(ansible_exit_json))
+            self.assertTrue(is_changed(ansible_exit_json))
+
+    def test_set_power_mode_already_set(self):
+        """Test that if we set Power Mode to normal when it's already normal, we get changed=False."""
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Chassis',
+                    'command': 'PowerModeNormal',
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21'
+                })
+                module.main()
+            self.assertEqual(ACTION_WAS_SUCCESSFUL, get_exception_message(ansible_exit_json))
+            self.assertFalse(is_changed(ansible_exit_json))
+
+    def test_set_power_mode_check_mode(self):
+        """Test check mode when setting chassis Power Mode."""
+        with patch.multiple("ansible_collections.community.general.plugins.module_utils.ocapi_utils.OcapiUtils",
+                            get_request=mock_get_request,
+                            put_request=mock_invalid_http_request):
+            with self.assertRaises(AnsibleExitJson) as ansible_exit_json:
+                set_module_args({
+                    'category': 'Chassis',
+                    'command': 'IndicatorLedOn',
+                    'baseuri': MOCK_BASE_URI,
+                    'username': 'USERID',
+                    'password': 'PASSWORD=21',
+                    '_ansible_check_mode': True
+                })
+                module.main()
+            self.assertEqual(UPDATE_NOT_PERFORMED_IN_CHECK_MODE, get_exception_message(ansible_exit_json))
             self.assertTrue(is_changed(ansible_exit_json))
 
     def test_set_chassis_led_indicator_check_mode(self):
