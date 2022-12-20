@@ -22,10 +22,10 @@ DOCUMENTATION = '''
         default: '/opt/CARKaim/sdk/clipasswordsdk'
       appid:
         description: Defines the unique ID of the application that is issuing the password request.
-        required: True
+        required: true
       query:
         description: Describes the filter criteria for the password retrieval.
-        required: True
+        required: true
       output:
         description:
           - Specifies the desired output fields separated by commas.
@@ -174,7 +174,6 @@ class LookupModule(LookupBase):
     """
 
     def run(self, terms, variables=None, **kwargs):
-
         display.vvvv("%s" % terms)
         if isinstance(terms, list):
             return_values = []

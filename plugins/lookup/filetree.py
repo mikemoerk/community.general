@@ -18,7 +18,7 @@ description:
 options:
   _terms:
     description: path(s) of files to read
-    required: True
+    required: true
 '''
 
 EXAMPLES = r"""
@@ -201,6 +201,8 @@ def file_props(root, path):
 class LookupModule(LookupBase):
 
     def run(self, terms, variables=None, **kwargs):
+        self.set_options(var_options=variables, direct=kwargs)
+
         basedir = self.get_basedir(variables)
 
         ret = []

@@ -20,24 +20,24 @@ DOCUMENTATION = '''
                   matched resources will be returned.
             type: list
             elements: string
-            required: False
+            required: false
         api_token:
             description:
                 - manifold API token
             type: string
-            required: True
+            required: true
             env:
               - name: MANIFOLD_API_TOKEN
         project:
             description:
                 - The project label you want to get the resource for.
             type: string
-            required: False
+            required: false
         team:
             description:
                 - The team label you want to get the resource for.
             type: string
-            required: False
+            required: false
 '''
 
 EXAMPLES = '''
@@ -207,7 +207,7 @@ class ManifoldApiClient(object):
 
 class LookupModule(LookupBase):
 
-    def run(self, terms, variables=None, api_token=None, project=None, team=None):
+    def run(self, terms, variables=None, **kwargs):
         """
         :param terms: a list of resources lookups to run.
         :param variables: ansible variables active at the time of the lookup
@@ -217,10 +217,11 @@ class LookupModule(LookupBase):
         :return: a dictionary of resources credentials
         """
 
-        if not api_token:
-            api_token = os.getenv('MANIFOLD_API_TOKEN')
-        if not api_token:
-            raise AnsibleError('API token is required. Please set api_token parameter or MANIFOLD_API_TOKEN env var')
+        self.set_options(var_options=variables, direct=kwargs)
+
+        api_token = self.get_option('api_token')
+        project = self.get_option('project')
+        team = self.get_option('team')
 
         try:
             labels = terms
