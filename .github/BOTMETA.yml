@@ -826,6 +826,10 @@ files:
     maintainers: shane-walker xcambar
   $modules/nsupdate.py:
     maintainers: nerzhul
+  $modules/ocapi_command.py:
+    maintainers: $team_wdc
+  $modules/ocapi_info.py:
+    maintainers: $team_wdc
   $modules/oci_vcn.py:
     maintainers: $team_oracle rohitChaware
   $modules/odbc.py:
@@ -1173,10 +1177,6 @@ files:
   $modules/snmp_facts.py:
     maintainers: ogenstad ujwalkomarla
   $modules/solaris_zone.py:
-  $modules/remote_management/ocapi/ocapi_command.py:
-    maintainers: $team_wdc
-  $modules/remote_management/ocapi/ocapi_info.py:
-    maintainers: $team_wdc
     keywords: beadm dladm illumos ipadm nexenta omnios openindiana pfexec smartos solaris sunos zfs zpool
     labels: solaris
     maintainers: $team_solaris pmarkham
